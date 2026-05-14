@@ -25,6 +25,21 @@ input {
   font: inherit;
 }
 
+.cute-input {
+  width: 100%;
+  border: 0;
+  border-radius: 24px;
+  background: #fff8ec;
+  padding: 14px 18px;
+  color: #7a5342;
+  font-weight: 900;
+  outline: none;
+}
+
+.cute-input:focus {
+  box-shadow: 0 0 0 2px rgba(243, 139, 181, 0.4);
+}
+
 .recharts-wrapper svg:focus,
 .recharts-surface:focus {
   outline: none;
