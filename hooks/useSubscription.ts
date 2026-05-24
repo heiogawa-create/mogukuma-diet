@@ -1,6 +1,3 @@
-// hooks/useSubscription.ts
-// サブスクリプション状態を管理するカスタムフック
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -33,7 +30,10 @@ export function useSubscription() {
   const fetchSubscription = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const res = await fetch('/api/stripe/subscription');
+      const res = await fetch('/api/stripe/subscription', {
+        method: 'GET',
+        credentials: 'include',
+      });
       if (!res.ok) throw new Error('fetch failed');
       const data = await res.json();
       setState({ ...data, loading: false, error: null });
@@ -50,13 +50,13 @@ export function useSubscription() {
     fetchSubscription();
   }, [fetchSubscription]);
 
-  // =============================================
-  // Stripe Checkout へリダイレクト
-  // =============================================
   const startCheckout = async () => {
     setState(prev => ({ ...prev, loading: true }));
     try {
-      const res = await fetch('/api/stripe/checkout', { method: 'POST' });
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        credentials: 'include',
+      });
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
@@ -72,13 +72,13 @@ export function useSubscription() {
     }
   };
 
-  // =============================================
-  // Stripe Customer Portal へリダイレクト
-  // =============================================
   const openPortal = async () => {
     setState(prev => ({ ...prev, loading: true }));
     try {
-      const res = await fetch('/api/stripe/portal', { method: 'POST' });
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        credentials: 'include',
+      });
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
