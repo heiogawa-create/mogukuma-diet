@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import {
   PLANS,
   getOrCreateStripeCustomer,
@@ -9,15 +9,23 @@ import { getUserSubscription } from '@/lib/subscription';
 
 export async function POST(request: NextRequest) {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-
-    if (!session?.user) {
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.replace('Bearer ', '');
+    if (!token) {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
     }
 
-    const user = session.user;
-    const origin = request.headers.get('origin') || 'https://mogukuma-diet.vercel.app';
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
 
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    const origin = request.headers.get('origin') || 'https://mogukuma-diet.vercel.app';
     const subscription = await getUserSubscription(user.id);
 
     if (subscription?.plan === 'premium' && subscription.status === 'active') {
@@ -28,6 +36,11 @@ export async function POST(request: NextRequest) {
       user.id,
       user.email!,
       subscription?.stripe_customer_id
+    );
+
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
     if (!subscription?.stripe_customer_id) {
