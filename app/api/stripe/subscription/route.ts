@@ -1,16 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { getUserSubscription, isPremium } from '@/lib/subscription';
 
 export async function GET(request: NextRequest) {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.replace('Bearer ', '');
 
-    if (!session?.user) {
+    if (!token) {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
     }
 
-    const subscription = await getUserSubscription(session.user.id);
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (error || !user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    const subscription = await getUserSubscription(user.id);
     const premium = isPremium(subscription);
 
     return NextResponse.json({
