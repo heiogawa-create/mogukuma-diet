@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
 
 export interface SubscriptionState {
   plan: 'free' | 'premium';
@@ -30,19 +31,19 @@ export function useSubscription() {
   const fetchSubscription = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setState(prev => ({ ...prev, loading: false, error: '認証が必要です' }));
+        return;
+      }
       const res = await fetch('/api/stripe/subscription', {
-        method: 'GET',
-        credentials: 'include',
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (!res.ok) throw new Error('fetch failed');
       const data = await res.json();
       setState({ ...data, loading: false, error: null });
     } catch (err) {
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: 'サブスク情報の取得に失敗しました',
-      }));
+      setState(prev => ({ ...prev, loading: false, error: 'サブスク情報の取得に失敗しました' }));
     }
   }, []);
 
@@ -53,9 +54,10 @@ export function useSubscription() {
   const startCheckout = async () => {
     setState(prev => ({ ...prev, loading: true }));
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
-        credentials: 'include',
+        headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       const data = await res.json();
       if (data.url) {
@@ -64,20 +66,17 @@ export function useSubscription() {
         throw new Error(data.error || 'checkout failed');
       }
     } catch (err: any) {
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: err.message || '決済処理でエラーが発生しました',
-      }));
+      setState(prev => ({ ...prev, loading: false, error: err.message || '決済処理でエラーが発生しました' }));
     }
   };
 
   const openPortal = async () => {
     setState(prev => ({ ...prev, loading: true }));
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/stripe/portal', {
         method: 'POST',
-        credentials: 'include',
+        headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       const data = await res.json();
       if (data.url) {
@@ -86,18 +85,9 @@ export function useSubscription() {
         throw new Error(data.error || 'portal failed');
       }
     } catch (err: any) {
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: err.message || 'ポータルへのアクセスでエラーが発生しました',
-      }));
+      setState(prev => ({ ...prev, loading: false, error: err.message || 'ポータルへのアクセスでエラーが発生しました' }));
     }
   };
 
-  return {
-    ...state,
-    refetch: fetchSubscription,
-    startCheckout,
-    openPortal,
-  };
+  return { ...state, refetch: fetchSubscription, startCheckout, openPortal };
 }
