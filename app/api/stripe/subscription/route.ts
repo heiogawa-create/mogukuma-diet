@@ -1,14 +1,9 @@
-// app/api/stripe/subscription/route.ts
-// クライアントからサブスク状態を取得するAPI
-
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { supabase } from '@/lib/supabase';
 import { getUserSubscription, isPremium } from '@/lib/subscription';
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session?.user) {
