@@ -1,5 +1,4 @@
 'use client';
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase-client';
 
@@ -31,11 +30,21 @@ export function useSubscription() {
   const fetchSubscription = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      let session = null;
+      for (let i = 0; i < 5; i++) {
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          session = data.session;
+          break;
+        }
+        await new Promise(r => setTimeout(r, 500));
+      }
+
       if (!session) {
         setState(prev => ({ ...prev, loading: false, error: '認証が必要です' }));
         return;
       }
+
       const res = await fetch('/api/stripe/subscription', {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
@@ -48,7 +57,14 @@ export function useSubscription() {
   }, []);
 
   useEffect(() => {
+    // 認証状態の変化を監視
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        fetchSubscription();
+      }
+    });
     fetchSubscription();
+    return () => subscription.unsubscribe();
   }, [fetchSubscription]);
 
   const startCheckout = async () => {
