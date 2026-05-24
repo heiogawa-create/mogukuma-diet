@@ -1,15 +1,23 @@
-import { createBrowserClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 
-let supabaseInstance: ReturnType<typeof createBrowserClient> | null = null;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-export function getSupabaseClient() {
-  if (!supabaseInstance) {
-    supabaseInstance = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-  }
-  return supabaseInstance;
+// シングルトンでインスタンスを管理
+const globalForSupabase = globalThis as unknown as {
+  supabase: ReturnType<typeof createClient> | undefined;
+};
+
+export const supabase =
+  globalForSupabase.supabase ??
+  createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: true,
+      storageKey: 'sb-kvrnomajvqnatczjyzvr-auth-token',
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    },
+  });
+
+if (typeof window !== 'undefined') {
+  globalForSupabase.supabase = supabase;
 }
-
-export const supabase = getSupabaseClient();
