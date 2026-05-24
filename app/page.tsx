@@ -15,6 +15,8 @@ import {
   YAxis,
 } from "recharts";
 import { MoguKuma } from "@/components/MoguKuma";
+import { supabase } from "@/lib/supabase";
+import type { User } from "@supabase/supabase-js";
 
 type Screen = "home" | "meal" | "weight" | "report" | "settings";
 type MealType = "朝食" | "昼食" | "夕食" | "間食";
@@ -179,11 +181,10 @@ function calcGoals(settings: UserSettings) {
   };
 }
 
-// 連続記録日数を計算
 function calcStreak(mealRecords: MealRecord[]): number {
   const recordedDates = new Set(mealRecords.map((m) => m.date));
   let streak = 0;
-  let current = new Date();
+  const current = new Date();
   while (true) {
     const key = current.toISOString().slice(0, 10);
     if (recordedDates.has(key)) {
@@ -216,7 +217,75 @@ function getFallbackWeightRecords(): WeightRecord[] {
   ];
 }
 
+// ── 認証画面 ──────────────────────────────────────────────────
+
+function AuthPage() {
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    setMessage("");
+    setError("");
+    try {
+      if (mode === "signup") {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        setMessage("確認メールを送りました！メールを確認してね🐻");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-app px-4 py-5 text-cocoa">
+      <div className="mx-auto flex min-h-[calc(100vh-40px)] w-full max-w-[430px] flex-col items-center justify-center gap-6 overflow-hidden rounded-[42px] border border-white/70 bg-white/45 shadow-soft backdrop-blur px-8">
+        <div className="text-center">
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-berry/80">AI Diet Coach</p>
+          <h1 className="mt-1 text-3xl font-black tracking-tight">もぐクマDiet</h1>
+        </div>
+        <MoguKuma message={mode === "login" ? "おかえり！ログインしてね🐻" : "はじめまして！一緒にがんばろう🐻"} />
+        <div className="w-full space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setMode("login")} className={`rounded-[20px] py-3 text-sm font-black transition active:scale-95 ${mode === "login" ? "bg-cocoa text-white shadow-float" : "bg-cream text-cocoa"}`}>ログイン</button>
+            <button onClick={() => setMode("signup")} className={`rounded-[20px] py-3 text-sm font-black transition active:scale-95 ${mode === "signup" ? "bg-cocoa text-white shadow-float" : "bg-cream text-cocoa"}`}>新規登録</button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <p className="mb-2 text-xs font-black text-cocoa/65">メールアドレス</p>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="example@email.com" className="cute-input" />
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-black text-cocoa/65">パスワード</p>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="6文字以上" className="cute-input" />
+            </div>
+          </div>
+          {message && <div className="rounded-[20px] bg-mint/60 p-3"><p className="text-sm font-bold text-cocoa">{message}</p></div>}
+          {error && <div className="rounded-[20px] bg-sakura p-3"><p className="text-sm font-bold text-cocoa">⚠️ {error}</p></div>}
+          <button onClick={handleSubmit} disabled={loading} className="w-full rounded-[24px] bg-cocoa px-5 py-4 font-black text-white shadow-float transition active:scale-95 disabled:opacity-60">
+            {loading ? "処理中..." : mode === "login" ? "ログイン" : "新規登録"}
+          </button>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+// ── メインコンポーネント ──────────────────────────────────────
+
 export default function Home() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [screen, setScreen] = useState<Screen>("home");
   const [photoName, setPhotoName] = useState("写真を選択してね");
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -240,6 +309,18 @@ export default function Home() {
 
   const todayKey = getTodayKey();
 
+  // 認証チェック
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   useEffect(() => {
     const savedMeals = window.localStorage.getItem(MEALS_STORAGE_KEY);
     const savedWeights = window.localStorage.getItem(WEIGHTS_STORAGE_KEY);
@@ -262,15 +343,12 @@ export default function Home() {
 
   const goals = useMemo(() => calcGoals(settings), [settings]);
 
-  // 週間データ
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, i) => offsetDateKey(-6 + i)), []);
   const weekMeals = useMemo(() => mealRecords.filter((m) => weekDates.includes(m.date)), [mealRecords, weekDates]);
   const weekWeights = useMemo(() => weightRecords.filter((w) => weekDates.includes(w.date)), [weightRecords, weekDates]);
 
-  // 連続記録日数
   const streak = useMemo(() => calcStreak(mealRecords), [mealRecords]);
 
-  // バッジ判定
   const todayMeals = useMemo(() => mealRecords.filter((meal) => meal.date === todayKey), [mealRecords, todayKey]);
   const todayTotals = useMemo(
     () => todayMeals.reduce(
@@ -284,7 +362,7 @@ export default function Home() {
     { id: "streak7", label: "7日継続", icon: "🔥", earned: streak >= 7 },
     { id: "streak14", label: "14日継続", icon: "⭐", earned: streak >= 14 },
     { id: "streak30", label: "30日継続", icon: "👑", earned: streak >= 30 },
-    { id: "protein", label: "たんぱく質達成", icon: "💪", earned: todayTotals.protein >= goals.protein },
+    { id: "protein", label: "蛋白質達成", icon: "💪", earned: todayTotals.protein >= goals.protein },
     { id: "water", label: "水分達成", icon: "💧", earned: todayTotals.water >= goals.water },
     { id: "fiber", label: "食物繊維達成", icon: "🥦", earned: todayTotals.fiber >= goals.fiber },
   ], [streak, todayTotals, goals]);
@@ -299,7 +377,7 @@ export default function Home() {
   );
 
   const pfcChartData = [
-    { name: "たんぱく質", value: todayTotals.protein, goal: goals.protein, color: "#F38BB5" },
+    { name: "蛋白質", value: todayTotals.protein, goal: goals.protein, color: "#F38BB5" },
     { name: "脂質", value: todayTotals.fat, goal: goals.fat, color: "#FFD36E" },
     { name: "炭水化物", value: todayTotals.carbs, goal: goals.carbs, color: "#8EDDC0" },
     { name: "食物繊維", value: todayTotals.fiber, goal: goals.fiber, color: "#BFEEDB" },
@@ -416,6 +494,20 @@ export default function Home() {
 
   const displayName = settings.name || "あなた";
 
+  // 認証ローディング
+  if (authLoading) {
+    return (
+      <main className="min-h-screen bg-app flex items-center justify-center">
+        <p className="text-cocoa font-black animate-pulse">🐻 読み込み中...</p>
+      </main>
+    );
+  }
+
+  // 未ログイン → 認証画面
+  if (!user) {
+    return <AuthPage />;
+  }
+
   return (
     <main className="min-h-screen bg-app px-4 py-5 text-cocoa">
       <div className="mx-auto flex min-h-[calc(100vh-40px)] w-full max-w-[430px] flex-col overflow-hidden rounded-[42px] border border-white/70 bg-white/45 shadow-soft backdrop-blur">
@@ -430,7 +522,12 @@ export default function Home() {
               <div className="rounded-full bg-white/90 px-3 py-2 text-center shadow-float">
                 <p className="text-xs font-black text-berry">🔥 {streak}日</p>
               </div>
-              <button onClick={() => setScreen("settings")} className="rounded-full bg-white/90 px-3 py-3 text-xl shadow-float">⚙️</button>
+              <button
+                onClick={() => supabase.auth.signOut()}
+                className="rounded-full bg-white/90 px-3 py-2 text-xs font-black shadow-float"
+              >
+                ログアウト
+              </button>
             </div>
           </div>
         </header>
@@ -442,7 +539,6 @@ export default function Home() {
             <div className="space-y-5">
               <MoguKuma message={`${displayName}、今日の記録は${todayMeals.length}件だよ。${streak > 0 ? `${streak}日連続記録中！すごいね🔥` : "続けているだけで十分えらい！"}`} />
 
-              {/* バッジ */}
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {badges.map((badge) => (
                   <div key={badge.id} className={`shrink-0 rounded-[20px] px-3 py-2 text-center shadow-float transition ${badge.earned ? "bg-honey/80" : "bg-white/50 opacity-40"}`}>
@@ -452,7 +548,6 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* カロリーカード */}
               <div className="rounded-[34px] bg-gradient-to-br from-sakura via-white to-mint/70 p-5 shadow-soft">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -472,9 +567,8 @@ export default function Home() {
                 <p className="mt-1 text-right text-xs font-bold text-cocoa/50">{calorieProgress}%</p>
               </div>
 
-              {/* 栄養素 */}
               <div className="space-y-3">
-                <NutrientRow label="たんぱく質（Protein）" desc="筋肉を守り、代謝を上げる三大栄養素" value={todayTotals.protein} goal={goals.protein} unit="g" color="bg-sakura" barColor="#F38BB5" />
+                <NutrientRow label="蛋白質（Protein）" desc="筋肉を守り、代謝を上げる三大栄養素" value={todayTotals.protein} goal={goals.protein} unit="g" color="bg-sakura" barColor="#F38BB5" />
                 <NutrientRow label="脂質（Fat）" desc="ホルモンや細胞の材料。摂りすぎに注意" value={todayTotals.fat} goal={goals.fat} unit="g" color="bg-honey/60" barColor="#FFD36E" />
                 <NutrientRow label="炭水化物（Carbohydrate）" desc="脳と体のメインエネルギー源" value={todayTotals.carbs} goal={goals.carbs} unit="g" color="bg-mint" barColor="#8EDDC0" />
                 <NutrientRow label="食物繊維" desc="腸内環境を整える。1日の目標を目指そう" value={todayTotals.fiber} goal={goals.fiber} unit="g" color="bg-cream" barColor="#BFEEDB" />
@@ -505,7 +599,6 @@ export default function Home() {
                 <WeightAreaChart data={weightChartData} compact />
               </SoftCard>
 
-              {/* AI分析へのボタン */}
               <button onClick={() => setScreen("report")} className="w-full rounded-[28px] bg-gradient-to-r from-berry/80 to-honey/80 p-5 text-left shadow-soft transition active:scale-95">
                 <p className="text-lg font-black text-white">🐻 週間AIレポートを見る</p>
                 <p className="mt-1 text-xs font-bold text-white/80">もぐクマが今週の食事を分析するよ</p>
@@ -535,11 +628,11 @@ export default function Home() {
                 <div className="rounded-[28px] bg-mint/60 p-4 shadow-float">
                   <p className="text-xs font-black text-cocoa/70">✨ AI解析完了！フォームに自動入力したよ</p>
                   <p className="mt-1 text-lg font-black">{analyzeResult.foodName}</p>
-                  <p className="mt-1 text-xs font-bold text-cocoa/60">{analyzeResult.calories}kcal / たんぱく質{analyzeResult.protein}g 脂質{analyzeResult.fat}g 炭水化物{analyzeResult.carbs}g / 食物繊維{analyzeResult.fiber}g</p>
+                  <p className="mt-1 text-xs font-bold text-cocoa/60">{analyzeResult.calories}kcal / 蛋白質{analyzeResult.protein}g 脂質{analyzeResult.fat}g 炭水化物{analyzeResult.carbs}g / 食物繊維{analyzeResult.fiber}g</p>
                 </div>
               )}
 
-              <SoftCard title={editingMealId ? "食事記録を編集" : "食事記録フォーム"} subtitle={analyzeResult ? "AI推定値を確認・修正してね" : "手入力でlocalStorage保存"}>
+              <SoftCard title={editingMealId ? "食事記録を編集" : "食事記録フォーム"} subtitle={analyzeResult ? "AI推定値を確認・修正してね" : "手入力で保存"}>
                 <div className="space-y-4">
                   <div><Label>食事名</Label><input value={mealForm.name} onChange={(e) => updateMealForm("name", e.target.value)} placeholder="例：鮭おにぎりと豆腐サラダ" className="cute-input" /></div>
                   <div>
@@ -552,7 +645,7 @@ export default function Home() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <NumberInput label="カロリー" unit="kcal" value={mealForm.calories} onChange={(v) => updateMealForm("calories", v)} />
-                    <NumberInput label="たんぱく質" unit="g" value={mealForm.protein} onChange={(v) => updateMealForm("protein", v)} />
+                    <NumberInput label="蛋白質" unit="g" value={mealForm.protein} onChange={(v) => updateMealForm("protein", v)} />
                     <NumberInput label="脂質" unit="g" value={mealForm.fat} onChange={(v) => updateMealForm("fat", v)} />
                     <NumberInput label="炭水化物" unit="g" value={mealForm.carbs} onChange={(v) => updateMealForm("carbs", v)} />
                     <NumberInput label="食物繊維" unit="g" value={mealForm.fiber} onChange={(v) => updateMealForm("fiber", v)} />
@@ -574,7 +667,7 @@ export default function Home() {
                         <div>
                           <p className="text-xs font-black text-berry">{meal.date}・{meal.mealType}</p>
                           <h3 className="mt-1 text-lg font-black">{meal.name}</h3>
-                          <p className="mt-1 text-xs font-bold text-cocoa/65">{meal.calories}kcal / たんぱく質{meal.protein}g 脂質{meal.fat}g 炭水化物{meal.carbs}g / 食物繊維{meal.fiber}g / 水分{meal.water}ml</p>
+                          <p className="mt-1 text-xs font-bold text-cocoa/65">{meal.calories}kcal / 蛋白質{meal.protein}g 脂質{meal.fat}g 炭水化物{meal.carbs}g / 食物繊維{meal.fiber}g / 水分{meal.water}ml</p>
                         </div>
                         <div className="flex shrink-0 flex-col gap-2">
                           <button onClick={() => editMeal(meal)} className="rounded-full bg-white px-3 py-2 text-xs font-black shadow-float">編集</button>
@@ -632,103 +725,40 @@ export default function Home() {
           {screen === "report" && (
             <div className="space-y-5">
               <MoguKuma message={weeklyReport ? weeklyReport.encouragementMessage : `${displayName}の今週のデータを分析するよ！ボタンを押してね🐻`} />
-
-              <button
-                onClick={fetchWeeklyReport}
-                disabled={reportLoading}
-                className="w-full rounded-[28px] bg-gradient-to-r from-berry/80 to-honey/80 p-5 font-black text-white shadow-soft transition active:scale-95 disabled:opacity-60"
-              >
+              <button onClick={fetchWeeklyReport} disabled={reportLoading} className="w-full rounded-[28px] bg-gradient-to-r from-berry/80 to-honey/80 p-5 font-black text-white shadow-soft transition active:scale-95 disabled:opacity-60">
                 {reportLoading ? "🐻 もぐクマが分析中..." : "✨ 今週のAIレポートを生成"}
               </button>
-
-              {reportLoading && (
-                <div className="rounded-[28px] bg-berry/10 p-4 text-center">
-                  <p className="text-sm font-black text-berry animate-pulse">🐻 今週の食事データを分析しています...</p>
-                </div>
-              )}
-
-              {reportError && (
-                <div className="rounded-[28px] bg-sakura p-4">
-                  <p className="text-sm font-bold text-cocoa">⚠️ {reportError}</p>
-                </div>
-              )}
-
+              {reportLoading && <div className="rounded-[28px] bg-berry/10 p-4 text-center"><p className="text-sm font-black text-berry animate-pulse">🐻 今週の食事データを分析しています...</p></div>}
+              {reportError && <div className="rounded-[28px] bg-sakura p-4"><p className="text-sm font-bold text-cocoa">⚠️ {reportError}</p></div>}
               {weeklyReport && (
                 <div className="space-y-4">
-                  {/* サマリー */}
                   <div className="rounded-[28px] bg-gradient-to-br from-mint/60 to-cream p-5 shadow-soft">
                     <p className="text-xs font-black text-cocoa/70">📊 今週の総評</p>
                     <p className="mt-2 text-sm font-bold leading-relaxed">{weeklyReport.summary}</p>
                   </div>
-
-                  {/* 良かった点 */}
                   <SoftCard title="✅ 良かった点" subtitle="この調子で続けよう">
-                    <div className="space-y-2">
-                      {weeklyReport.goodPoints.map((point, i) => (
-                        <div key={i} className="rounded-[20px] bg-mint/50 px-4 py-3">
-                          <p className="text-sm font-bold">{point}</p>
-                        </div>
-                      ))}
-                    </div>
+                    <div className="space-y-2">{weeklyReport.goodPoints.map((point, i) => <div key={i} className="rounded-[20px] bg-mint/50 px-4 py-3"><p className="text-sm font-bold">{point}</p></div>)}</div>
                   </SoftCard>
-
-                  {/* 改善点 */}
                   <SoftCard title="💡 改善できそうな点" subtitle="少しずつ意識してみよう">
-                    <div className="space-y-2">
-                      {weeklyReport.improvementPoints.map((point, i) => (
-                        <div key={i} className="rounded-[20px] bg-honey/40 px-4 py-3">
-                          <p className="text-sm font-bold">{point}</p>
-                        </div>
-                      ))}
-                    </div>
+                    <div className="space-y-2">{weeklyReport.improvementPoints.map((point, i) => <div key={i} className="rounded-[20px] bg-honey/40 px-4 py-3"><p className="text-sm font-bold">{point}</p></div>)}</div>
                   </SoftCard>
-
-                  {/* 注意点 */}
                   {weeklyReport.riskWarnings.length > 0 && (
                     <SoftCard title="⚠️ 注意してほしいこと" subtitle="無理せず健康的に">
-                      <div className="space-y-2">
-                        {weeklyReport.riskWarnings.map((warning, i) => (
-                          <div key={i} className="rounded-[20px] bg-sakura/80 px-4 py-3">
-                            <p className="text-sm font-bold">{warning}</p>
-                          </div>
-                        ))}
-                      </div>
+                      <div className="space-y-2">{weeklyReport.riskWarnings.map((warning, i) => <div key={i} className="rounded-[20px] bg-sakura/80 px-4 py-3"><p className="text-sm font-bold">{warning}</p></div>)}</div>
                     </SoftCard>
                   )}
-
-                  {/* おすすめ食品 */}
                   <SoftCard title="🥗 今週追加したい食品" subtitle="栄養バランスを整えるために">
-                    <div className="flex flex-wrap gap-2">
-                      {weeklyReport.recommendedFoods.map((food, i) => (
-                        <span key={i} className="rounded-full bg-mint/60 px-3 py-2 text-xs font-black">{food}</span>
-                      ))}
-                    </div>
+                    <div className="flex flex-wrap gap-2">{weeklyReport.recommendedFoods.map((food, i) => <span key={i} className="rounded-full bg-mint/60 px-3 py-2 text-xs font-black">{food}</span>)}</div>
                   </SoftCard>
-
-                  {/* コンビニ提案 */}
                   <SoftCard title="🏪 コンビニで買えるもの" subtitle="手軽に栄養補給">
-                    <div className="space-y-2">
-                      {weeklyReport.convenienceStoreSuggestions.map((item, i) => (
-                        <div key={i} className="rounded-[20px] bg-cream/80 px-4 py-3">
-                          <p className="text-sm font-bold">🛒 {item}</p>
-                        </div>
-                      ))}
-                    </div>
+                    <div className="space-y-2">{weeklyReport.convenienceStoreSuggestions.map((item, i) => <div key={i} className="rounded-[20px] bg-cream/80 px-4 py-3"><p className="text-sm font-bold">🛒 {item}</p></div>)}</div>
                   </SoftCard>
                 </div>
               )}
-
-              {/* 今週のデータサマリー */}
               <SoftCard title="今週の記録" subtitle={`食事${weekMeals.length}件・体重${weekWeights.length}件`}>
                 <div className="grid grid-cols-2 gap-2 text-xs font-black">
-                  <div className="rounded-[16px] bg-cream/80 p-3 text-center">
-                    <p className="text-cocoa/60">記録した食事</p>
-                    <p className="text-2xl">{weekMeals.length}件</p>
-                  </div>
-                  <div className="rounded-[16px] bg-cream/80 p-3 text-center">
-                    <p className="text-cocoa/60">連続記録</p>
-                    <p className="text-2xl text-berry">{streak}日🔥</p>
-                  </div>
+                  <div className="rounded-[16px] bg-cream/80 p-3 text-center"><p className="text-cocoa/60">記録した食事</p><p className="text-2xl">{weekMeals.length}件</p></div>
+                  <div className="rounded-[16px] bg-cream/80 p-3 text-center"><p className="text-cocoa/60">連続記録</p><p className="text-2xl text-berry">{streak}日🔥</p></div>
                 </div>
               </SoftCard>
             </div>
@@ -738,13 +768,9 @@ export default function Home() {
           {screen === "settings" && (
             <div className="space-y-5">
               <MoguKuma compact message={`${displayName}の情報を教えてね。目標カロリーとPFCを自動で計算するよ🐻`} />
-
               <SoftCard title="基本情報" subtitle="目標値の自動計算に使います">
                 <div className="space-y-4">
-                  <div>
-                    <Label>名前（ニックネーム）</Label>
-                    <input value={settings.name} onChange={(e) => setSettings((s) => ({ ...s, name: e.target.value }))} placeholder="例：もぐちゃん" className="cute-input" />
-                  </div>
+                  <div><Label>名前（ニックネーム）</Label><input value={settings.name} onChange={(e) => setSettings((s) => ({ ...s, name: e.target.value }))} placeholder="例：もぐちゃん" className="cute-input" /></div>
                   <div>
                     <Label>性別</Label>
                     <div className="grid grid-cols-2 gap-2">
@@ -780,7 +806,7 @@ export default function Home() {
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-black">
                   <div className="rounded-[16px] bg-white/70 p-2 text-center"><p className="text-cocoa/60">維持カロリー</p><p className="text-lg">{goals.tdee} kcal</p></div>
                   <div className="rounded-[16px] bg-white/70 p-2 text-center"><p className="text-cocoa/60">目標カロリー</p><p className="text-lg text-berry">{goals.calories} kcal</p></div>
-                  <div className="rounded-[16px] bg-white/70 p-2 text-center"><p className="text-cocoa/60">たんぱく質</p><p className="text-lg">{goals.protein} g</p></div>
+                  <div className="rounded-[16px] bg-white/70 p-2 text-center"><p className="text-cocoa/60">蛋白質</p><p className="text-lg">{goals.protein} g</p></div>
                   <div className="rounded-[16px] bg-white/70 p-2 text-center"><p className="text-cocoa/60">脂質</p><p className="text-lg">{goals.fat} g</p></div>
                   <div className="rounded-[16px] bg-white/70 p-2 text-center"><p className="text-cocoa/60">炭水化物</p><p className="text-lg">{goals.carbs} g</p></div>
                   <div className="rounded-[16px] bg-white/70 p-2 text-center"><p className="text-cocoa/60">食物繊維</p><p className="text-lg">{goals.fiber} g</p></div>
@@ -790,7 +816,7 @@ export default function Home() {
               <SoftCard title="目標値を手動で変更" subtitle="0のままにすると自動計算を使用">
                 <div className="grid grid-cols-2 gap-3">
                   <NumberInput label="カロリー目標" unit="kcal" value={settings.manualCalories} onChange={(v) => setSettings((s) => ({ ...s, manualCalories: toNumber(v) }))} />
-                  <NumberInput label="たんぱく質目標" unit="g" value={settings.manualProtein} onChange={(v) => setSettings((s) => ({ ...s, manualProtein: toNumber(v) }))} />
+                  <NumberInput label="蛋白質目標" unit="g" value={settings.manualProtein} onChange={(v) => setSettings((s) => ({ ...s, manualProtein: toNumber(v) }))} />
                   <NumberInput label="脂質目標" unit="g" value={settings.manualFat} onChange={(v) => setSettings((s) => ({ ...s, manualFat: toNumber(v) }))} />
                   <NumberInput label="炭水化物目標" unit="g" value={settings.manualCarbs} onChange={(v) => setSettings((s) => ({ ...s, manualCarbs: toNumber(v) }))} />
                   <NumberInput label="食物繊維目標" unit="g" value={settings.manualFiber} onChange={(v) => setSettings((s) => ({ ...s, manualFiber: toNumber(v) }))} />
@@ -802,11 +828,14 @@ export default function Home() {
               <button onClick={saveSettings} className={`w-full rounded-[24px] px-5 py-4 font-black text-white shadow-float transition active:scale-95 ${settingsSaved ? "bg-mint/80 text-cocoa" : "bg-cocoa"}`}>
                 {settingsSaved ? "✅ 保存しました！" : "設定を保存する"}
               </button>
+
+              <button onClick={() => supabase.auth.signOut()} className="w-full rounded-[24px] bg-sakura px-5 py-4 font-black text-cocoa shadow-float transition active:scale-95">
+                ログアウト
+              </button>
             </div>
           )}
         </section>
 
-        {/* ボトムナビ */}
         <nav className="fixed bottom-5 left-1/2 z-10 grid w-[min(390px,calc(100%-40px))] -translate-x-1/2 grid-cols-5 gap-1 rounded-[30px] border border-white/80 bg-white/85 p-2 shadow-soft backdrop-blur">
           {tabs.map((tab) => (
             <button key={tab.id} onClick={() => setScreen(tab.id)} className={`rounded-[24px] px-2 py-3 text-[10px] font-black transition active:scale-95 ${screen === tab.id ? "bg-cocoa text-white shadow-float" : "text-cocoa/70"}`}>
