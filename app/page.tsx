@@ -218,6 +218,27 @@ function getFallbackWeightRecords(): WeightRecord[] {
   ];
 }
 
+async function compressImage(dataUrl: string, maxWidth: number, quality: number): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = dataUrl;
+  });
+}
+
 function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
@@ -411,14 +432,14 @@ export default function Home() {
     reader.onload = async (e) => {
       const dataUrl = e.target?.result as string;
       setPhotoPreview(dataUrl);
-      const base64 = dataUrl.split(",")[1];
-      const mediaType = file.type as "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+      const compressed = await compressImage(dataUrl, 800, 0.7);
+      const base64 = compressed.split(",")[1];
       setAnalyzing(true);
       try {
         const res = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageBase64: base64, mediaType }),
+          body: JSON.stringify({ imageBase64: base64, mediaType: "image/jpeg" }),
         });
         const data = await res.json();
         if (data.error) {
@@ -538,10 +559,7 @@ export default function Home() {
                   <p className="text-xs font-black text-white">✨ PRO</p>
                 </div>
               )}
-              <button
-                onClick={() => supabase.auth.signOut()}
-                className="rounded-full bg-white/90 px-3 py-2 text-xs font-black shadow-float"
-              >
+              <button onClick={() => supabase.auth.signOut()} className="rounded-full bg-white/90 px-3 py-2 text-xs font-black shadow-float">
                 ログアウト
               </button>
             </div>
@@ -553,7 +571,6 @@ export default function Home() {
           {screen === "home" && (
             <div className="space-y-5">
               <MoguKuma message={`${displayName}、今日の記録は${todayMeals.length}件だよ。${streak > 0 ? `${streak}日連続記録中！すごいね🔥` : "続けているだけで十分えらい！"}`} />
-
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {badges.map((badge) => (
                   <div key={badge.id} className={`shrink-0 rounded-[20px] px-3 py-2 text-center shadow-float transition ${badge.earned ? "bg-honey/80" : "bg-white/50 opacity-40"}`}>
@@ -562,7 +579,6 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-
               <div className="rounded-[34px] bg-gradient-to-br from-sakura via-white to-mint/70 p-5 shadow-soft">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -581,7 +597,6 @@ export default function Home() {
                 </div>
                 <p className="mt-1 text-right text-xs font-bold text-cocoa/50">{calorieProgress}%</p>
               </div>
-
               <div className="space-y-3">
                 <NutrientRow label="蛋白質（Protein）" desc="筋肉を守り、代謝を上げる三大栄養素" value={todayTotals.protein} goal={goals.protein} unit="g" color="bg-sakura" barColor="#F38BB5" />
                 <NutrientRow label="脂質（Fat）" desc="ホルモンや細胞の材料。摂りすぎに注意" value={todayTotals.fat} goal={goals.fat} unit="g" color="bg-honey/60" barColor="#FFD36E" />
@@ -589,13 +604,11 @@ export default function Home() {
                 <NutrientRow label="食物繊維" desc="腸内環境を整える。1日の目標を目指そう" value={todayTotals.fiber} goal={goals.fiber} unit="g" color="bg-cream" barColor="#BFEEDB" />
                 <NutrientRow label="水分" desc="体重や活動量に合わせて補給しよう" value={todayTotals.water} goal={goals.water} unit="ml" color="bg-sky-100" barColor="#9FD7FF" />
               </div>
-
               <div className="rounded-[28px] bg-peach/70 p-4 shadow-float">
                 <p className="text-xs font-black text-cocoa/60">今日の体重</p>
                 <p className="mt-1 text-2xl font-black">{latestWeightRecord ? `${latestWeightRecord.weight} kg` : "未記録"}</p>
                 {latestWeightRecord && <p className="mt-1 text-xs font-bold text-cocoa/50">目標まで あと {targetLeft.toFixed(1)} kg</p>}
               </div>
-
               <div className="grid grid-cols-4 gap-2">
                 {mealsByType.map((meal) => (
                   <button key={meal.label} onClick={() => setScreen("meal")} className="rounded-[24px] bg-white/85 p-3 text-left shadow-float transition active:scale-95">
@@ -605,15 +618,12 @@ export default function Home() {
                   </button>
                 ))}
               </div>
-
               <SoftCard title="今日の栄養バランス" subtitle="目標値と比較">
                 <NutritionBarChart data={pfcChartData} />
               </SoftCard>
-
               <SoftCard title="体重グラフ" subtitle="保存した体重を反映">
                 <WeightAreaChart data={weightChartData} compact />
               </SoftCard>
-
               <button onClick={() => setScreen("report")} className="w-full rounded-[28px] bg-gradient-to-r from-berry/80 to-honey/80 p-5 text-left shadow-soft transition active:scale-95">
                 <p className="text-lg font-black text-white">🐻 週間AIレポートを見る</p>
                 <p className="mt-1 text-xs font-bold text-white/80">{isPremium ? "もぐクマが今週の食事を分析するよ" : "🔒 プレミアム限定機能"}</p>
@@ -624,7 +634,6 @@ export default function Home() {
           {screen === "meal" && (
             <div className="space-y-5">
               {analyzeResult ? <MoguKuma compact message={analyzeResult.comment} /> : <MoguKuma compact message={isPremium ? "写真を撮ったらもぐクマが栄養素を推定するよ！手入力でも記録できるよ🐻" : "手入力で食事を記録しよう🐻 写真解析はプレミアム限定だよ"} />}
-
               <label className={`block rounded-[36px] border-2 border-dashed bg-white/80 p-6 text-center shadow-soft ${isPremium ? "border-berry/30 cursor-pointer" : "border-gray-200 cursor-not-allowed opacity-70"}`}>
                 <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={handlePhotoChange} disabled={!isPremium} />
                 {photoPreview ? (
@@ -637,13 +646,11 @@ export default function Home() {
                 <p className="mt-4 text-lg font-black">{analyzing ? "🔍 もぐクマが解析中..." : isPremium ? "📷 写真を撮る・選ぶ" : "🔒 写真解析（プレミアム限定）"}</p>
                 <p className="mt-1 text-sm font-bold text-cocoa/60">{isPremium ? photoName : "アップグレードで使えるよ"}</p>
               </label>
-
               {!isPremium && (
                 <button onClick={() => setScreen("settings")} className="w-full rounded-[28px] bg-gradient-to-r from-amber-400 to-orange-400 p-4 text-center font-black text-white shadow-soft transition active:scale-95">
                   ✨ プレミアムにアップグレード
                 </button>
               )}
-
               {analyzing && <div className="rounded-[28px] bg-berry/10 p-4 text-center"><p className="text-sm font-black text-berry animate-pulse">🐻 もぐクマが栄養素を推定しています...</p></div>}
               {analyzeError && <div className="rounded-[28px] bg-sakura p-4"><p className="text-sm font-bold text-cocoa">⚠️ {analyzeError}</p><p className="mt-1 text-xs text-cocoa/70">手動で入力してね！</p></div>}
               {analyzeResult && (
@@ -653,7 +660,6 @@ export default function Home() {
                   <p className="mt-1 text-xs font-bold text-cocoa/60">{analyzeResult.calories}kcal / 蛋白質{analyzeResult.protein}g 脂質{analyzeResult.fat}g 炭水化物{analyzeResult.carbs}g / 食物繊維{analyzeResult.fiber}g</p>
                 </div>
               )}
-
               <SoftCard title={editingMealId ? "食事記録を編集" : "食事記録フォーム"} subtitle={isPremium ? (analyzeResult ? "AI推定値を確認・修正してね" : "手入力で保存") : `フリープラン：本日${mealRecords.filter(m => m.date === todayKey).length}/3件`}>
                 <div className="space-y-4">
                   <div><Label>食事名</Label><input value={mealForm.name} onChange={(e) => updateMealForm("name", e.target.value)} placeholder="例：鮭おにぎりと豆腐サラダ" className="cute-input" /></div>
@@ -679,7 +685,6 @@ export default function Home() {
                   </div>
                 </div>
               </SoftCard>
-
               <SoftCard title="保存した食事記録" subtitle={`${mealRecords.length}件を保存中`}>
                 <div className="space-y-3">
                   {mealRecords.length === 0 && <EmptyMessage>まだ食事記録がないよ。まずは1つ保存してみよう。</EmptyMessage>}
@@ -831,7 +836,6 @@ export default function Home() {
                   </div>
                 </div>
               </SoftCard>
-
               <div className="rounded-[28px] bg-mint/50 p-4 shadow-float">
                 <p className="text-xs font-black text-cocoa/70">🤖 自動計算された目標値</p>
                 <p className="mt-1 text-[10px] font-bold text-cocoa/50">ハリス・ベネディクト方程式による推定値</p>
@@ -844,7 +848,6 @@ export default function Home() {
                   <div className="rounded-[16px] bg-white/70 p-2 text-center"><p className="text-cocoa/60">食物繊維</p><p className="text-lg">{goals.fiber} g</p></div>
                 </div>
               </div>
-
               <SoftCard title="目標値を手動で変更" subtitle="0のままにすると自動計算を使用">
                 <div className="grid grid-cols-2 gap-3">
                   <NumberInput label="カロリー目標" unit="kcal" value={settings.manualCalories} onChange={(v) => setSettings((s) => ({ ...s, manualCalories: toNumber(v) }))} />
@@ -856,19 +859,17 @@ export default function Home() {
                 </div>
                 <p className="mt-2 text-xs font-bold text-cocoa/50">※ 0のままにすると自動計算値が使われます</p>
               </SoftCard>
-
               <button onClick={saveSettings} className={`w-full rounded-[24px] px-5 py-4 font-black text-white shadow-float transition active:scale-95 ${settingsSaved ? "bg-mint/80 text-cocoa" : "bg-cocoa"}`}>
                 {settingsSaved ? "✅ 保存しました！" : "設定を保存する"}
               </button>
-
               {!isPremium && (
                 <button onClick={() => window.location.href = '/pricing'} className="w-full rounded-[24px] bg-gradient-to-r from-amber-400 to-orange-400 px-5 py-4 font-black text-white shadow-float transition active:scale-95">
                   ✨ プレミアムにアップグレード（¥480/月）
                 </button>
               )}
-　　　　　　　 {isPremium && (
-  <button onClick={openPortal} className="w-full rounded-[24px] bg-white border-2 border-amber-400 px-5 py-4 font-black text-amber-600 shadow-float transition active:scale-95">
-    ✨ プラン管理・解約
+              {isPremium && (
+                <button onClick={openPortal} className="w-full rounded-[24px] bg-white border-2 border-amber-400 px-5 py-4 font-black text-amber-600 shadow-float transition active:scale-95">
+                  ✨ プラン管理・解約
                 </button>
               )}
               <button onClick={() => supabase.auth.signOut()} className="w-full rounded-[24px] bg-sakura px-5 py-4 font-black text-cocoa shadow-float transition active:scale-95">
