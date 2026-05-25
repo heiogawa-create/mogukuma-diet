@@ -21,13 +21,12 @@ export async function POST(request: NextRequest) {
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
-        await handleSubscriptionUpsert(subscription);
+        await handleSubscriptionUpsertWithUserId(subscription, null);
         break;
       }
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
-        const userId = subscription.metadata?.supabase_user_id
-          || await getUserIdFromCustomer(subscription.customer as string);
+        const userId = subscription.metadata?.supabase_user_id;
         if (userId) {
           await downgradeToFree(userId);
         }
@@ -38,7 +37,7 @@ export async function POST(request: NextRequest) {
         const subscriptionId = (invoice as any).subscription as string;
         if (subscriptionId) {
           const sub = await stripe.subscriptions.retrieve(subscriptionId);
-          await handleSubscriptionUpsert(sub, 'past_due');
+          await handleSubscriptionUpsertWithUserId(sub, null, 'past_due');
         }
         break;
       }
@@ -49,7 +48,6 @@ export async function POST(request: NextRequest) {
           const subscription = await stripe.subscriptions.retrieve(
             session.subscription as string
           );
-          // subscriptionのmetadataにuserIdを追加してからupsert
           if (userId && !subscription.metadata?.supabase_user_id) {
             await stripe.subscriptions.update(session.subscription as string, {
               metadata: { supabase_user_id: userId },
@@ -68,14 +66,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 });
   }
 }
-async function getUserIdFromCustomer(customerId: string): Promise<string | null> {
-  try {
-    const { data } = await import('@/lib/subscription').then(m => ({ data: null }));
-    return null;
-  } catch {
-    return null;
-  }
-}
 async function handleSubscriptionUpsertWithUserId(
   subscription: Stripe.Subscription,
   userId?: string | null,
@@ -88,6 +78,21 @@ async function handleSubscriptionUpsertWithUserId(
   }
   const priceId = subscription.items.data[0]?.price.id;
   const isPremiumPrice = priceId === process.env.STRIPE_PREMIUM_PRICE_ID;
+
+  // current_period_start/end を安全に取得
+  const item = subscription.items.data[0];
+  const periodStart = (item as any)?.current_period_start
+    ?? (subscription as any).current_period_start;
+  const periodEnd = (item as any)?.current_period_end
+    ?? (subscription as any).current_period_end;
+
+  const currentPeriodStart = periodStart
+    ? new Date(periodStart * 1000)
+    : new Date();
+  const currentPeriodEnd = periodEnd
+    ? new Date(periodEnd * 1000)
+    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
   await upsertSubscription({
     userId: resolvedUserId,
     stripeCustomerId: subscription.customer as string,
@@ -95,14 +100,8 @@ async function handleSubscriptionUpsertWithUserId(
     stripePriceId: priceId,
     plan: isPremiumPrice ? 'premium' : 'free',
     status: overrideStatus || subscription.status,
-    currentPeriodStart: new Date((subscription as any).current_period_start * 1000),
-    currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
-    cancelAtPeriodEnd: (subscription as any).cancel_at_period_end,
+    currentPeriodStart,
+    currentPeriodEnd,
+    cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
   });
-}
-async function handleSubscriptionUpsert(
-  subscription: Stripe.Subscription,
-  overrideStatus?: string
-) {
-  await handleSubscriptionUpsertWithUserId(subscription, null, overrideStatus);
 }
