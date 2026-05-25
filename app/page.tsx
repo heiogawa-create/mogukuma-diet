@@ -635,7 +635,7 @@ export default function Home() {
             <div className="space-y-5">
               {analyzeResult ? <MoguKuma compact message={analyzeResult.comment} /> : <MoguKuma compact message={isPremium ? "写真を撮ったらもぐクマが栄養素を推定するよ！手入力でも記録できるよ🐻" : "手入力で食事を記録しよう🐻 写真解析はプレミアム限定だよ"} />}
               <label className={`block rounded-[36px] border-2 border-dashed bg-white/80 p-6 text-center shadow-soft ${isPremium ? "border-berry/30 cursor-pointer" : "border-gray-200 cursor-not-allowed opacity-70"}`}>
-                <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={handlePhotoChange} disabled={!isPremium} />
+                <input ref={fileInputRef} type="file" accept="image/*" className="sr-only" onChange={handlePhotoChange} disabled={!isPremium} />
                 {photoPreview ? (
                   <img src={photoPreview} alt="食事写真" className="mx-auto h-48 w-full rounded-[24px] object-cover shadow-soft" />
                 ) : (
