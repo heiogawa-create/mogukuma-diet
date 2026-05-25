@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       customerId,
       priceId: PLANS.premium.stripePriceId,
       userId: user.id,
-      successUrl: `${origin}/settings?upgrade=success`,
+      successUrl: `${origin}/?upgrade=success`,
       cancelUrl: `${origin}/pricing?upgrade=canceled`,
     });
 
