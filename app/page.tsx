@@ -305,7 +305,7 @@ export default function Home() {
   const [settingsSaved, setSettingsSaved] = useState(false);
 
   const todayKey = getTodayKey();
-  const { isPremium } = useSubscription();
+  const { isPremium, openPortal } = useSubscription();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -866,7 +866,11 @@ export default function Home() {
                   ✨ プレミアムにアップグレード（¥480/月）
                 </button>
               )}
-
+　　　　　　　 {isPremium && (
+  <button onClick={openPortal} className="w-full rounded-[24px] bg-white border-2 border-amber-400 px-5 py-4 font-black text-amber-600 shadow-float transition active:scale-95">
+    ✨ プラン管理・解約
+                </button>
+              )}
               <button onClick={() => supabase.auth.signOut()} className="w-full rounded-[24px] bg-sakura px-5 py-4 font-black text-cocoa shadow-float transition active:scale-95">
                 ログアウト
               </button>
