@@ -436,11 +436,15 @@ export default function Home() {
       const base64 = compressed.split(",")[1];
       setAnalyzing(true);
       try {
-        const res = await fetch("/api/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageBase64: base64, mediaType: "image/jpeg" }),
-        });
+        const { data: { session } } = await supabase.auth.getSession();
+const res = await fetch("/api/analyze", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${session?.access_token}`,
+  },
+  body: JSON.stringify({ imageBase64: base64, mediaType: "image/jpeg" }),
+});
         const data = await res.json();
         if (data.error) {
           setAnalyzeError(data.error);
