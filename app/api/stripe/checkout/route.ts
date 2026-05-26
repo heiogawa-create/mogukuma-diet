@@ -19,17 +19,21 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
-
     const { data: { user }, error } = await supabase.auth.getUser(token);
     if (error || !user) {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
     }
 
+    // リクエストボディからプランを取得
+    const body = await request.json().catch(() => ({}));
+    const planId = body.plan === 'max' ? 'max' : 'premium';
+
     const origin = request.headers.get('origin') || 'https://mogukuma-diet.vercel.app';
     const subscription = await getUserSubscription(user.id);
 
-    if (subscription?.plan === 'premium' && subscription.status === 'active') {
-      return NextResponse.json({ error: 'すでにプレミアムプランです' }, { status: 400 });
+    // すでに同じプランの場合はエラー
+    if (subscription?.plan === planId && subscription.status === 'active') {
+      return NextResponse.json({ error: `すでに${planId === 'max' ? 'MAX' : 'プレミアム'}プランです` }, { status: 400 });
     }
 
     const customerId = await getOrCreateStripeCustomer(
@@ -50,9 +54,13 @@ export async function POST(request: NextRequest) {
         .eq('user_id', user.id);
     }
 
+    const priceId = planId === 'max'
+      ? PLANS.max.stripePriceId
+      : PLANS.premium.stripePriceId;
+
     const checkoutSession = await createCheckoutSession({
       customerId,
-      priceId: PLANS.premium.stripePriceId,
+      priceId,
       userId: user.id,
       successUrl: `${origin}/?upgrade=success`,
       cancelUrl: `${origin}/pricing?upgrade=canceled`,
