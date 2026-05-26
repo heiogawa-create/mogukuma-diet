@@ -11,7 +11,7 @@ export interface SubscriptionRecord {
   user_id: string;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
-  plan: 'free' | 'premium';
+  plan: 'free' | 'premium' | 'max';
   status: string;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
@@ -30,7 +30,13 @@ export async function getUserSubscription(userId: string): Promise<SubscriptionR
 
 export function isPremium(subscription: SubscriptionRecord | null): boolean {
   if (!subscription) return false;
-  return subscription.plan === 'premium' &&
+  return (subscription.plan === 'premium' || subscription.plan === 'max') &&
+    (subscription.status === 'active' || subscription.status === 'trialing');
+}
+
+export function isMax(subscription: SubscriptionRecord | null): boolean {
+  if (!subscription) return false;
+  return subscription.plan === 'max' &&
     (subscription.status === 'active' || subscription.status === 'trialing');
 }
 
@@ -39,7 +45,7 @@ export async function upsertSubscription(data: {
   stripeCustomerId: string;
   stripeSubscriptionId: string;
   stripePriceId: string;
-  plan: 'free' | 'premium';
+  plan: 'free' | 'premium' | 'max';
   status: string;
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
