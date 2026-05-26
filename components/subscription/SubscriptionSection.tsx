@@ -98,7 +98,7 @@ export default function SubscriptionSection() {
         ) : (
           <>
             <button
-              onClick={startCheckout}
+              onClick={() => startCheckout('premium')}
               disabled={loading}
               className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold shadow hover:opacity-90 transition"
             >
