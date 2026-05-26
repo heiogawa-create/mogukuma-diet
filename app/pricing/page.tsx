@@ -71,7 +71,7 @@ function PricingContent() {
                 {loading ? '処理中...' : 'プラン管理・解約'}
               </button>
             ) : (
-              <button onClick={startCheckout} disabled={loading} className="w-full py-3 rounded-xl bg-white text-orange-600 font-bold hover:bg-orange-50 transition shadow-md">
+              <button onClick={() => startCheckout('premium')} disabled={loading} className="w-full py-3 rounded-xl bg-white text-orange-600 font-bold hover:bg-orange-50 transition shadow-md">
                 {loading ? '処理中...' : '✨ プレミアムにアップグレード'}
               </button>
             )}
