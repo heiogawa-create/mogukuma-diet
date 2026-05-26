@@ -2,13 +2,13 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
-import { Check, Zap, Star } from 'lucide-react';
+import { Check, Zap, Star, Crown } from 'lucide-react';
 import { useSubscription } from '@/hooks/useSubscription';
 
 function PricingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isPremium, loading, startCheckout, openPortal, error } = useSubscription();
+  const { isPremium, isMax, plan, loading, startCheckout, openPortal, error } = useSubscription();
   const canceled = searchParams.get('upgrade') === 'canceled';
 
   return (
@@ -24,9 +24,11 @@ function PricingContent() {
         )}
       </div>
 
-      <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-6">
-        <div className={`bg-white rounded-2xl border-2 p-6 shadow-sm ${!isPremium ? 'border-amber-400' : 'border-gray-200'}`}>
-          {!isPremium && (
+      <div className="max-w-5xl mx-auto grid md:grid-cols-3 gap-6">
+
+        {/* フリープラン */}
+        <div className={`bg-white rounded-2xl border-2 p-6 shadow-sm ${plan === 'free' ? 'border-amber-400' : 'border-gray-200'}`}>
+          {plan === 'free' && (
             <div className="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full inline-block mb-4">現在のプラン</div>
           )}
           <div className="flex items-center gap-2 mb-2">
@@ -47,9 +49,10 @@ function PricingContent() {
           </button>
         </div>
 
-        <div className="bg-gradient-to-b from-amber-500 to-orange-500 rounded-2xl border-2 border-orange-400 p-6 shadow-lg relative overflow-hidden">
+        {/* プレミアムプラン */}
+        <div className={`bg-gradient-to-b from-amber-500 to-orange-500 rounded-2xl border-2 border-orange-400 p-6 shadow-lg relative overflow-hidden`}>
           <div className="relative">
-            {isPremium && (
+            {plan === 'premium' && (
               <div className="bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full inline-block mb-4">✨ ご利用中</div>
             )}
             <div className="bg-yellow-300 text-yellow-900 text-xs font-bold px-3 py-1 rounded-full inline-block mb-4 ml-2">おすすめ</div>
@@ -60,13 +63,13 @@ function PricingContent() {
             <div className="text-3xl font-bold text-white mb-1">¥480<span className="text-base font-normal text-orange-100"> / 月</span></div>
             <p className="text-sm text-orange-100 mb-6">AI フル活用でダイエット加速</p>
             <ul className="space-y-3 mb-6">
-              {['食事記録 無制限', 'AI写真解析', 'AI週間レポート', '詳細栄養グラフ', '広告なし', '優先サポート'].map((f) => (
+              {['食事記録 無制限', 'AI写真解析 月50回', 'AI週間レポート', '詳細栄養グラフ', '広告なし', '優先サポート'].map((f) => (
                 <li key={f} className="flex items-center gap-2 text-sm text-white">
                   <Check className="w-4 h-4 text-yellow-300 flex-shrink-0" />{f}
                 </li>
               ))}
             </ul>
-            {isPremium ? (
+            {plan === 'premium' ? (
               <button onClick={openPortal} disabled={loading} className="w-full py-3 rounded-xl bg-white/20 text-white font-medium hover:bg-white/30 transition border border-white/30">
                 {loading ? '処理中...' : 'プラン管理・解約'}
               </button>
@@ -77,6 +80,39 @@ function PricingContent() {
             )}
           </div>
         </div>
+
+        {/* MAXプラン */}
+        <div className={`bg-gradient-to-b from-purple-600 to-indigo-600 rounded-2xl border-2 border-purple-400 p-6 shadow-lg relative overflow-hidden`}>
+          <div className="relative">
+            {plan === 'max' && (
+              <div className="bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full inline-block mb-4">👑 ご利用中</div>
+            )}
+            <div className="bg-purple-300 text-purple-900 text-xs font-bold px-3 py-1 rounded-full inline-block mb-4 ml-2">ヘビーユーザー向け</div>
+            <div className="flex items-center gap-2 mb-2">
+              <Crown className="text-purple-200 w-5 h-5 fill-current" />
+              <h2 className="text-xl font-bold text-white">MAXプラン</h2>
+            </div>
+            <div className="text-3xl font-bold text-white mb-1">¥860<span className="text-base font-normal text-purple-100"> / 月</span></div>
+            <p className="text-sm text-purple-100 mb-6">毎日ガンガン使いたい人向け</p>
+            <ul className="space-y-3 mb-6">
+              {['食事記録 無制限', 'AI写真解析 月100回', 'AI週間レポート', '詳細栄養グラフ', '広告なし', '優先サポート'].map((f) => (
+                <li key={f} className="flex items-center gap-2 text-sm text-white">
+                  <Check className="w-4 h-4 text-purple-300 flex-shrink-0" />{f}
+                </li>
+              ))}
+            </ul>
+            {plan === 'max' ? (
+              <button onClick={openPortal} disabled={loading} className="w-full py-3 rounded-xl bg-white/20 text-white font-medium hover:bg-white/30 transition border border-white/30">
+                {loading ? '処理中...' : 'プラン管理・解約'}
+              </button>
+            ) : (
+              <button onClick={() => startCheckout('max')} disabled={loading} className="w-full py-3 rounded-xl bg-white text-purple-600 font-bold hover:bg-purple-50 transition shadow-md">
+                {loading ? '処理中...' : '👑 MAXプランにアップグレード'}
+              </button>
+            )}
+          </div>
+        </div>
+
       </div>
 
       {error && (
