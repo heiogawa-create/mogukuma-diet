@@ -68,7 +68,7 @@ export function useSubscription() {
     return () => subscription.unsubscribe();
   }, [fetchSubscription]);
 
-  const startCheckout = async (plan: 'premium' | 'max' = 'premium') => {
+  const startCheckout = useCallback(async (plan: 'premium' | 'max' = 'premium') => {
     setState(prev => ({ ...prev, loading: true }));
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -89,9 +89,9 @@ export function useSubscription() {
     } catch (err: any) {
       setState(prev => ({ ...prev, loading: false, error: err.message || '決済処理でエラーが発生しました' }));
     }
-  };
+  }, []);
 
-  const openPortal = async () => {
+  const openPortal = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true }));
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -108,7 +108,7 @@ export function useSubscription() {
     } catch (err: any) {
       setState(prev => ({ ...prev, loading: false, error: err.message || 'ポータルへのアクセスでエラーが発生しました' }));
     }
-  };
+  }, []);
 
   return { ...state, refetch: fetchSubscription, startCheckout, openPortal };
 }
