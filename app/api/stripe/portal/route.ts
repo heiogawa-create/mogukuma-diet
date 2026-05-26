@@ -28,9 +28,9 @@ export async function POST(request: NextRequest) {
 
     const origin = request.headers.get('origin') || 'https://mogukuma-diet.vercel.app';
     const portalSession = await createPortalSession(
-      subscription.stripe_customer_id,
-      `${origin}/settings`
-    );
+  subscription.stripe_customer_id,
+  `${origin}/`
+);
 
     return NextResponse.json({ url: portalSession.url });
   } catch (error) {
