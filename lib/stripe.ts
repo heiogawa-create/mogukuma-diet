@@ -1,17 +1,10 @@
-// lib/stripe.ts
-// Stripe初期化・プラン定義・ヘルパー関数
-
 import Stripe from 'stripe';
 
-// Stripe インスタンス（サーバーサイドのみ）
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-04-22.dahlia',
   typescript: true,
 });
 
-// =============================================
-// プラン定義
-// =============================================
 export const PLANS = {
   free: {
     id: 'free',
@@ -29,6 +22,7 @@ export const PLANS = {
       aiPhotoAnalysis: false,
       aiWeeklyReport: false,
       ads: true,
+      analyzeLimit: 0,
     },
   },
   premium: {
@@ -38,7 +32,7 @@ export const PLANS = {
     stripePriceId: process.env.STRIPE_PREMIUM_PRICE_ID!,
     features: [
       '食事記録 無制限',
-      'AI写真解析',
+      'AI写真解析 月50回',
       'AI週間レポート',
       '詳細栄養グラフ',
       '広告なし',
@@ -49,15 +43,34 @@ export const PLANS = {
       aiPhotoAnalysis: true,
       aiWeeklyReport: true,
       ads: false,
+      analyzeLimit: 50,
+    },
+  },
+  max: {
+    id: 'max',
+    name: 'MAXプラン',
+    price: 860,
+    stripePriceId: process.env.STRIPE_MAX_PRICE_ID!,
+    features: [
+      '食事記録 無制限',
+      'AI写真解析 月100回',
+      'AI週間レポート',
+      '詳細栄養グラフ',
+      '広告なし',
+      '優先サポート',
+    ],
+    limits: {
+      mealsPerDay: Infinity,
+      aiPhotoAnalysis: true,
+      aiWeeklyReport: true,
+      ads: false,
+      analyzeLimit: 100,
     },
   },
 } as const;
 
 export type PlanId = keyof typeof PLANS;
 
-// =============================================
-// Stripe Customer 作成または取得
-// =============================================
 export async function getOrCreateStripeCustomer(
   userId: string,
   email: string,
@@ -66,18 +79,13 @@ export async function getOrCreateStripeCustomer(
   if (existingCustomerId) {
     return existingCustomerId;
   }
-
   const customer = await stripe.customers.create({
     email,
     metadata: { supabase_user_id: userId },
   });
-
   return customer.id;
 }
 
-// =============================================
-// Checkout Session 作成
-// =============================================
 export async function createCheckoutSession({
   customerId,
   priceId,
@@ -106,9 +114,6 @@ export async function createCheckoutSession({
   });
 }
 
-// =============================================
-// Customer Portal Session 作成（解約・更新）
-// =============================================
 export async function createPortalSession(
   customerId: string,
   returnUrl: string
@@ -119,9 +124,6 @@ export async function createPortalSession(
   });
 }
 
-// =============================================
-// Webhook Signature 検証
-// =============================================
 export function constructWebhookEvent(
   payload: Buffer,
   signature: string
