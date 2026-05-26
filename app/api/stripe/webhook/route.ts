@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { stripe, constructWebhookEvent } from '@/lib/stripe';
 import { upsertSubscription, downgradeToFree } from '@/lib/subscription';
+
 export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   const body = await request.arrayBuffer();
   const signature = request.headers.get('stripe-signature');
@@ -66,6 +68,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 });
   }
 }
+
 async function handleSubscriptionUpsertWithUserId(
   subscription: Stripe.Subscription,
   userId?: string | null,
@@ -77,9 +80,15 @@ async function handleSubscriptionUpsertWithUserId(
     return;
   }
   const priceId = subscription.items.data[0]?.price.id;
-  const isPremiumPrice = priceId === process.env.STRIPE_PREMIUM_PRICE_ID;
 
-  // current_period_start/end を安全に取得
+  // プランを判定
+  let plan: 'free' | 'premium' | 'max' = 'free';
+  if (priceId === process.env.STRIPE_MAX_PRICE_ID) {
+    plan = 'max';
+  } else if (priceId === process.env.STRIPE_PREMIUM_PRICE_ID) {
+    plan = 'premium';
+  }
+
   const item = subscription.items.data[0];
   const periodStart = (item as any)?.current_period_start
     ?? (subscription as any).current_period_start;
@@ -98,7 +107,7 @@ async function handleSubscriptionUpsertWithUserId(
     stripeCustomerId: subscription.customer as string,
     stripeSubscriptionId: subscription.id,
     stripePriceId: priceId,
-    plan: isPremiumPrice ? 'premium' : 'free',
+    plan,
     status: overrideStatus || subscription.status,
     currentPeriodStart,
     currentPeriodEnd,
