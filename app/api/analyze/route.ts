@@ -1,16 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { createClient } from '@supabase/supabase-js';
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+const MONTHLY_LIMIT = 50;
+
 export async function POST(request: NextRequest) {
   try {
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.replace('Bearer ', '');
+
     const { imageBase64, mediaType } = await request.json();
     if (!imageBase64) {
       return NextResponse.json({ error: '画像が必要です' }, { status: 400 });
     }
+
+    // 認証チェック
+    if (token) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      const { data: { user } } = await supabase.auth.getUser(token);
+
+      if (user) {
+        const yearMonth = new Date().toISOString().slice(0, 7);
+
+        // 今月の使用回数を確認
+        const supabaseAdmin = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+
+        const { count } = await supabaseAdmin
+          .from('api_usage')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('api_type', 'analyze')
+          .eq('year_month', yearMonth);
+
+        if ((count ?? 0) >= MONTHLY_LIMIT) {
+          return NextResponse.json({
+            error: `今月の写真解析は${MONTHLY_LIMIT}回までです。来月またお使いいただけます🐻`
+          }, { status: 429 });
+        }
+
+        // 使用回数を記録
+        await supabaseAdmin.from('api_usage').insert({
+          user_id: user.id,
+          api_type: 'analyze',
+          year_month: yearMonth,
+        });
+      }
+    }
+
     const response = await client.messages.create({
       model: 'claude-opus-4-5-20251101',
       max_tokens: 1024,
@@ -35,11 +81,13 @@ export async function POST(request: NextRequest) {
         },
       ],
     });
+
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
     const clean = text.replace(/```json|```/g, '').trim();
     const data = JSON.parse(clean);
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.status === 429) throw error;
     console.error('Analyze error:', error);
     return NextResponse.json({ error: '解析に失敗しました' }, { status: 500 });
   }
