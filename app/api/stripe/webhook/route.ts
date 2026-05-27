@@ -3,10 +3,17 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 import { stripe, constructWebhookEvent } from '@/lib/stripe';
 import { upsertSubscription, downgradeToFree } from '@/lib/subscription';
+import {
+  activateReferralAndUpdatePlan,
+  updateCurrentPlan,
+  recordReward,
+  checkCardFingerprintFraud,
+  getCurrentYearMonth,
+} from '@/lib/referral';
+import type { Plan } from '@/types/referral';
 
 export const dynamic = 'force-dynamic';
 
-// サーバーサイド専用のSupabaseクライアント（Service Role Key使用）
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -18,6 +25,7 @@ export async function POST(request: NextRequest) {
   if (!signature) {
     return NextResponse.json({ error: 'No signature' }, { status: 400 });
   }
+
   let event: Stripe.Event;
   try {
     event = constructWebhookEvent(Buffer.from(body), signature);
@@ -25,55 +33,99 @@ export async function POST(request: NextRequest) {
     console.error('Webhook signature verification failed:', err);
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
+
   try {
     switch (event.type) {
+
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
-        await handleSubscriptionUpsertWithUserId(subscription, null);
+        const plan = getPlanFromPriceId(subscription.items.data[0]?.price.id);
+        const userId = subscription.metadata?.supabase_user_id;
+
+        await handleSubscriptionUpsert(subscription, null);
+
+        if (userId && plan !== 'free') {
+          await updateCurrentPlan(userId, plan);
+        }
         break;
       }
+
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
         const userId = subscription.metadata?.supabase_user_id;
         if (userId) {
           await downgradeToFree(userId);
+          await updateCurrentPlan(userId, 'free');
         }
         break;
       }
+
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice;
         const subscriptionId = (invoice as any).subscription as string;
         if (subscriptionId) {
           const sub = await stripe.subscriptions.retrieve(subscriptionId);
-          await handleSubscriptionUpsertWithUserId(sub, null, 'past_due');
+          await handleSubscriptionUpsert(sub, null, 'past_due');
         }
         break;
       }
+
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         if (session.mode === 'subscription' && session.subscription) {
           const userId = session.metadata?.supabase_user_id;
           const subscription = await stripe.subscriptions.retrieve(
-            session.subscription as string
+            session.subscription as string,
+            { expand: ['default_payment_method'] }
           );
+
           if (userId && !subscription.metadata?.supabase_user_id) {
             await stripe.subscriptions.update(session.subscription as string, {
               metadata: { supabase_user_id: userId },
             });
           }
-          await handleSubscriptionUpsertWithUserId(subscription, userId);
 
-          // ── 紹介制度: referrals レコードを pending → active に更新 ──
+          await handleSubscriptionUpsert(subscription, userId);
+
           if (userId) {
-            await activateReferral(userId);
+            const plan = getPlanFromPriceId(subscription.items.data[0]?.price.id);
+            const paymentMethod = subscription.default_payment_method as Stripe.PaymentMethod | null;
+            const cardFingerprint = paymentMethod?.card?.fingerprint ?? undefined;
+
+            // 不正チェック
+            if (cardFingerprint) {
+              const isFraud = await checkCardFingerprintFraud(cardFingerprint, userId);
+              if (isFraud) {
+                console.warn(`Card fingerprint fraud detected for user: ${userId}`);
+                await supabaseAdmin
+                  .from('referrals')
+                  .update({ status: 'fraud_suspected' })
+                  .eq('referred_id', userId)
+                  .eq('status', 'pending');
+                break;
+              }
+
+              await supabaseAdmin
+                .from('referrals')
+                .update({ referred_card_fingerprint: cardFingerprint })
+                .eq('referred_id', userId);
+            }
+
+            // referrals active 化 + current_plan 更新
+            await activateReferralAndUpdatePlan(userId, plan);
+
+            // 報酬記録
+            await tryRecordReward(userId, plan, subscription);
           }
         }
         break;
       }
+
       default:
         break;
     }
+
     return NextResponse.json({ received: true });
   } catch (error) {
     console.error('Webhook handler error:', error);
@@ -81,30 +133,50 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * 紹介された人（referred_id = userId）が有料プランに加入したとき、
- * referrals テーブルの status を pending → active に更新する。
- */
-async function activateReferral(userId: string): Promise<void> {
-  const { data, error } = await supabaseAdmin
+async function tryRecordReward(
+  referredUserId: string,
+  referredPlan: Plan,
+  subscription: Stripe.Subscription
+): Promise<void> {
+  const { data: referral } = await supabaseAdmin
     .from('referrals')
-    .update({ status: 'active', activated_at: new Date().toISOString() })
-    .eq('referred_id', userId)
-    .eq('status', 'pending');
+    .select('referrer_id')
+    .eq('referred_id', referredUserId)
+    .eq('status', 'active')
+    .single();
 
-  if (error) {
-    // 紹介レコードがない場合は正常（紹介なしで登録したユーザー）
-    // エラーログは残しつつ、Webhookレスポンス全体は失敗させない
-    console.error('activateReferral error:', error);
-    return;
-  }
+  if (!referral) return;
 
-  if (data) {
-    console.log(`Referral activated for user: ${userId}`, data);
-  }
+  const { data: referrerSub } = await supabaseAdmin
+    .from('subscriptions')
+    .select('current_plan')
+    .eq('user_id', referral.referrer_id)
+    .single();
+
+  if (!referrerSub) return;
+
+  const referrerPlan = (referrerSub.current_plan ?? 'free') as Plan;
+  const periodStart = (subscription as any).current_period_start;
+  const subscribedAt = periodStart ? new Date(periodStart * 1000) : new Date();
+
+  await recordReward({
+    referrerId: referral.referrer_id,
+    referredUserId,
+    referrerPlan,
+    referredPlan,
+    yearMonth: getCurrentYearMonth(),
+    stripeSubscriptionId: subscription.id,
+    subscribedAt,
+  });
 }
 
-async function handleSubscriptionUpsertWithUserId(
+function getPlanFromPriceId(priceId?: string): Plan {
+  if (priceId === process.env.STRIPE_MAX_PRICE_ID) return 'max';
+  if (priceId === process.env.STRIPE_PREMIUM_PRICE_ID) return 'premium';
+  return 'free';
+}
+
+async function handleSubscriptionUpsert(
   subscription: Stripe.Subscription,
   userId?: string | null,
   overrideStatus?: string
@@ -115,27 +187,11 @@ async function handleSubscriptionUpsertWithUserId(
     return;
   }
   const priceId = subscription.items.data[0]?.price.id;
-
-  // プランを判定
-  let plan: 'free' | 'premium' | 'max' = 'free';
-  if (priceId === process.env.STRIPE_MAX_PRICE_ID) {
-    plan = 'max';
-  } else if (priceId === process.env.STRIPE_PREMIUM_PRICE_ID) {
-    plan = 'premium';
-  }
+  const plan = getPlanFromPriceId(priceId);
 
   const item = subscription.items.data[0];
-  const periodStart = (item as any)?.current_period_start
-    ?? (subscription as any).current_period_start;
-  const periodEnd = (item as any)?.current_period_end
-    ?? (subscription as any).current_period_end;
-
-  const currentPeriodStart = periodStart
-    ? new Date(periodStart * 1000)
-    : new Date();
-  const currentPeriodEnd = periodEnd
-    ? new Date(periodEnd * 1000)
-    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const periodStart = (item as any)?.current_period_start ?? (subscription as any).current_period_start;
+  const periodEnd   = (item as any)?.current_period_end   ?? (subscription as any).current_period_end;
 
   await upsertSubscription({
     userId: resolvedUserId,
@@ -144,8 +200,8 @@ async function handleSubscriptionUpsertWithUserId(
     stripePriceId: priceId,
     plan,
     status: overrideStatus || subscription.status,
-    currentPeriodStart,
-    currentPeriodEnd,
+    currentPeriodStart: periodStart ? new Date(periodStart * 1000) : new Date(),
+    currentPeriodEnd:   periodEnd   ? new Date(periodEnd   * 1000) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
   });
 }
