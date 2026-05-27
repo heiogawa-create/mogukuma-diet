@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { createClient } from '@supabase/supabase-js';
 import { stripe, constructWebhookEvent } from '@/lib/stripe';
 import { upsertSubscription, downgradeToFree } from '@/lib/subscription';
 
 export const dynamic = 'force-dynamic';
+
+// サーバーサイド専用のSupabaseクライアント（Service Role Key使用）
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(request: NextRequest) {
   const body = await request.arrayBuffer();
@@ -56,6 +63,11 @@ export async function POST(request: NextRequest) {
             });
           }
           await handleSubscriptionUpsertWithUserId(subscription, userId);
+
+          // ── 紹介制度: referrals レコードを pending → active に更新 ──
+          if (userId) {
+            await activateReferral(userId);
+          }
         }
         break;
       }
@@ -66,6 +78,29 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Webhook handler error:', error);
     return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 });
+  }
+}
+
+/**
+ * 紹介された人（referred_id = userId）が有料プランに加入したとき、
+ * referrals テーブルの status を pending → active に更新する。
+ */
+async function activateReferral(userId: string): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from('referrals')
+    .update({ status: 'active', activated_at: new Date().toISOString() })
+    .eq('referred_id', userId)
+    .eq('status', 'pending');
+
+  if (error) {
+    // 紹介レコードがない場合は正常（紹介なしで登録したユーザー）
+    // エラーログは残しつつ、Webhookレスポンス全体は失敗させない
+    console.error('activateReferral error:', error);
+    return;
+  }
+
+  if (data) {
+    console.log(`Referral activated for user: ${userId}`, data);
   }
 }
 
