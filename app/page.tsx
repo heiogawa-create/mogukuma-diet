@@ -1049,9 +1049,11 @@ function NutritionBarChart({ data }: { data: { name: string; value: number; goal
   return (
     <div className="h-52">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} barSize={20} margin={{ top: 8, bottom: 0, left: -16, right: 8 }}>
+        <BarChart data={data} barSize={20} margin={{ top: 8, bottom: 24, left: 0, right: 8 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3D9C8" />
-          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#7A5342", fontWeight: 800, fontSize: 9 }} />
+          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#7A5342", fontWeight: 800, fontSize: 10 }}
++     interval={0}
++     height={40} />
           <YAxis hide />
           <Tooltip cursor={{ fill: "rgba(255, 220, 232, 0.35)" }} />
           <Bar dataKey="goal" name="目標" radius={[8, 8, 8, 8]} fill="#E8E8E8" opacity={0.6} />
