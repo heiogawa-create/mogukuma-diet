@@ -243,9 +243,19 @@ function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('ref');
+    if (code) {
+      setReferralCode(code.toUpperCase());
+      setMode("signup");
+    }
+  }, []);
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -253,12 +263,37 @@ function AuthPage() {
     setError("");
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
+        if (referralCode && data.session) {
+          await fetch('/api/referral/apply', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${data.session.access_token}`,
+            },
+            body: JSON.stringify({ code: referralCode }),
+          });
+        }
+        if (referralCode && !data.session) {
+          localStorage.setItem('pending_referral_code', referralCode);
+        }
         setMessage("確認メールを送りました！メールを確認してね🐻");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        const pendingCode = localStorage.getItem('pending_referral_code');
+        if (pendingCode && data.session) {
+          await fetch('/api/referral/apply', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${data.session.access_token}`,
+            },
+            body: JSON.stringify({ code: pendingCode }),
+          });
+          localStorage.removeItem('pending_referral_code');
+        }
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "エラーが発生しました");
@@ -289,6 +324,19 @@ function AuthPage() {
               <p className="mb-2 text-xs font-black text-cocoa/65">パスワード</p>
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="6文字以上" className="cute-input" />
             </div>
+            {mode === "signup" && (
+              <div>
+                <p className="mb-2 text-xs font-black text-cocoa/65">紹介コード（任意）</p>
+                <input
+                  type="text"
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                  placeholder="例：ABCD1234"
+                  className="cute-input"
+                  maxLength={8}
+                />
+              </div>
+            )}
           </div>
           {message && <div className="rounded-[20px] bg-mint/60 p-3"><p className="text-sm font-bold text-cocoa">{message}</p></div>}
           {error && <div className="rounded-[20px] bg-sakura p-3"><p className="text-sm font-bold text-cocoa">⚠️ {error}</p></div>}
