@@ -363,6 +363,7 @@ export default function Home() {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [analyzeCount, setAnalyzeCount] = useState<number>(0);
+  const [myReferralCode, setMyReferralCode] = useState<string>('');
 
   const [mealRecords, setMealRecords] = useState<MealRecord[]>([]);
   const [weightRecords, setWeightRecords] = useState<WeightRecord[]>([]);
@@ -404,6 +405,21 @@ export default function Home() {
     };
     fetchAnalyzeCount();
   }, [isPremium, analyzeResult]);
+
+  useEffect(() => {
+    const fetchReferralCode = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || !isPremium) return;
+      const res = await fetch('/api/referral/code', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMyReferralCode(data.code);
+      }
+    };
+    fetchReferralCode();
+  }, [isPremium]);
 
   useEffect(() => {
     const savedMeals = window.localStorage.getItem(MEALS_STORAGE_KEY);
@@ -941,6 +957,44 @@ export default function Home() {
                 </div>
                 <p className="mt-2 text-xs font-bold text-cocoa/50">※ 0のままにすると自動計算値が使われます</p>
               </SoftCard>
+
+              {isPremium && (
+                <div className="rounded-[28px] bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 p-5 shadow-float">
+                  <p className="text-xs font-black text-amber-700 mb-2">🎁 あなたの紹介コード</p>
+                  {myReferralCode ? (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <p className="text-2xl font-black text-amber-900 tracking-widest">{myReferralCode}</p>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(myReferralCode);
+                            alert('コピーしました！');
+                          }}
+                          className="rounded-[16px] bg-amber-400 px-3 py-2 text-xs font-black text-white shadow-float"
+                        >
+                          コピー
+                        </button>
+                      </div>
+                      <p className="mt-2 text-xs font-bold text-amber-600">
+                        友達がこのコードで登録して有料プランに入ると毎月報酬がもらえるよ🐻
+                      </p>
+                      <button
+                        onClick={() => {
+                          const url = `https://mogukuma-diet.vercel.app/?ref=${myReferralCode}`;
+                          navigator.clipboard.writeText(url);
+                          alert('招待リンクをコピーしました！');
+                        }}
+                        className="mt-3 w-full rounded-[20px] bg-amber-500 px-4 py-3 text-sm font-black text-white shadow-float transition active:scale-95"
+                      >
+                        📤 招待リンクをコピー
+                      </button>
+                    </>
+                  ) : (
+                    <p className="text-sm text-amber-600">読み込み中...</p>
+                  )}
+                </div>
+              )}
+
               <button onClick={saveSettings} className={`w-full rounded-[24px] px-5 py-4 font-black text-white shadow-float transition active:scale-95 ${settingsSaved ? "bg-mint/80 text-cocoa" : "bg-cocoa"}`}>
                 {settingsSaved ? "✅ 保存しました！" : "設定を保存する"}
               </button>
