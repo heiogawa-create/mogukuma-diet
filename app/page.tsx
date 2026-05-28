@@ -532,6 +532,7 @@ export default function Home() {
           setAnalyzeError(data.error);
         } else {
           setAnalyzeResult(data);
+          setAnalyzeCount(prev => prev + 1);
           setMealForm((current) => ({ ...current, name: data.foodName ?? current.name, calories: data.calories ?? current.calories, protein: data.protein ?? current.protein, fat: data.fat ?? current.fat, carbs: data.carbs ?? current.carbs, fiber: data.fiber ?? current.fiber }));
         }
       } catch { setAnalyzeError("通信エラーが発生しました。"); }
