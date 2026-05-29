@@ -27,7 +27,8 @@ export async function POST(request: NextRequest) {
       const { data: { user } } = await supabase.auth.getUser(token);
 
       if (user) {
-        const yearMonth = new Date().toISOString().slice(0, 7);
+        const now = new Date();
+const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
         // 今月の使用回数を確認
         const supabaseAdmin = createClient(
