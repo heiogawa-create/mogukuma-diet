@@ -194,7 +194,10 @@ function calcStreak(mealRecords: MealRecord[]): number {
   let streak = 0;
   const current = new Date();
   while (true) {
-    const key = current.toISOString().slice(0, 10);
+    const year = current.getFullYear();
+const month = String(current.getMonth() + 1).padStart(2, '0');
+const day = String(current.getDate()).padStart(2, '0');
+const key = `${year}-${month}-${day}`;
     if (recordedDates.has(key)) {
       streak++;
       current.setDate(current.getDate() - 1);
