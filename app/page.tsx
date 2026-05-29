@@ -409,7 +409,8 @@ useEffect(() => {
     const fetchAnalyzeCount = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session || !isPremium) return;
-      const yearMonth = new Date().toISOString().slice(0, 7);
+      const now = new Date();
+const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       const res = await fetch(`/api/analyze/count?yearMonth=${yearMonth}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
