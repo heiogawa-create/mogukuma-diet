@@ -375,7 +375,15 @@ export default function Home() {
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [settingsSaved, setSettingsSaved] = useState(false);
 
-  const todayKey = getTodayKey();
+  const [todayKey, setTodayKey] = useState(getTodayKey());
+
+useEffect(() => {
+  const timer = setInterval(() => {
+    const newKey = getTodayKey();
+    setTodayKey(prev => prev !== newKey ? newKey : prev);
+  }, 60 * 1000);
+  return () => clearInterval(timer);
+}, []);
   const { isPremium, isMax, plan, openPortal } = useSubscription();
   const analyzeLimit = isMax ? 100 : 50;
 
