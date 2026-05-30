@@ -423,7 +423,7 @@ const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2,
       }
     };
     fetchAnalyzeCount();
-  }, [isPremium, analyzeResult]);
+  }, [isPremium]);
 
   useEffect(() => {
     const fetchReferralCode = async () => {
