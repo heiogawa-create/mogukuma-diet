@@ -409,21 +409,6 @@ useEffect(() => {
   }, []);
 
   useEffect(() => {
-    const fetchAnalyzeCount = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session || !isPremium) return;
-      const res = await fetch(`/api/analyze/count?currentPeriodStart=${currentPeriodStart ?? ''}`, {
-  headers: { Authorization: `Bearer ${session.access_token}` },
-});
-      if (res.ok) {
-        const data = await res.json();
-        setAnalyzeCount(data.count ?? 0);
-      }
-    };
-    fetchAnalyzeCount();
-  }, [isPremium, currentPeriodStart]);
-
-  useEffect(() => {
     if (!currentPeriodStart) return;
     const fetchAnalyzeCount = async () => {
       const { data: { session } } = await supabase.auth.getSession();
