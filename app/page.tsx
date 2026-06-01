@@ -421,7 +421,7 @@ useEffect(() => {
       }
     };
     fetchAnalyzeCount();
-  }, [isPremium]);
+  }, [isPremium, currentPeriodStart]);
 
   useEffect(() => {
     const fetchReferralCode = async () => {
