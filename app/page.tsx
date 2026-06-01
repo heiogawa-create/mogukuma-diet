@@ -422,7 +422,7 @@ useEffect(() => {
       }
     };
     fetchAnalyzeCount();
-  }, [isPremium, currentPeriodStart]);
+  }, [isPremium, currentPeriodStart, loading]);
 
   useEffect(() => {
     const savedMeals = window.localStorage.getItem(MEALS_STORAGE_KEY);
