@@ -38,13 +38,9 @@ export async function POST(request: NextRequest) {
           .eq('user_id', user.id)
           .single();
 
-        const periodStart = subData?.current_period_end
-          ? (() => {
-              const d = new Date(subData.current_period_end);
-              d.setMonth(d.getMonth() - 1);
-              return d.toISOString();
-            })()
-          : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+        const periodStart = subData?.current_period_start
+  ? new Date(subData.current_period_start).toISOString()
+  : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
         const { count } = await supabaseAdmin
           .from('api_usage')
