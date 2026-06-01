@@ -12,13 +12,12 @@ export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     const token = authHeader?.replace('Bearer ', '');
-
     const { imageBase64, mediaType } = await request.json();
+
     if (!imageBase64) {
       return NextResponse.json({ error: '画像が必要です' }, { status: 400 });
     }
 
-    // 認証チェック
     if (token) {
       const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,28 +26,32 @@ export async function POST(request: NextRequest) {
       const { data: { user } } = await supabase.auth.getUser(token);
 
       if (user) {
-        const now = new Date();
-// Stripeの請求期間開始日を取得
-const { data: subData } = await supabaseAdmin
-  .from('subscriptions')
-  .select('current_period_end')
-  .eq('user_id', user.id)
-  .single();
+        const supabaseAdmin = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
 
-const periodStart = subData?.current_period_end
-  ? (() => {
-      const d = new Date(subData.current_period_end);
-      d.setMonth(d.getMonth() - 1);
-      return d.toISOString();
-    })()
-  : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+        // Stripeの請求期間開始日を取得
+        const { data: subData } = await supabaseAdmin
+          .from('subscriptions')
+          .select('current_period_end')
+          .eq('user_id', user.id)
+          .single();
 
-const { count } = await supabaseAdmin
-  .from('api_usage')
-  .select('*', { count: 'exact', head: true })
-  .eq('user_id', user.id)
-  .eq('api_type', 'analyze')
-  .gte('used_at', periodStart);
+        const periodStart = subData?.current_period_end
+          ? (() => {
+              const d = new Date(subData.current_period_end);
+              d.setMonth(d.getMonth() - 1);
+              return d.toISOString();
+            })()
+          : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+
+        const { count } = await supabaseAdmin
+          .from('api_usage')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('api_type', 'analyze')
+          .gte('used_at', periodStart);
 
         if ((count ?? 0) >= MONTHLY_LIMIT) {
           return NextResponse.json({
@@ -60,7 +63,6 @@ const { count } = await supabaseAdmin
         await supabaseAdmin.from('api_usage').insert({
           user_id: user.id,
           api_type: 'analyze',
-          year_month: yearMonth,
         });
       }
     }
@@ -94,6 +96,7 @@ const { count } = await supabaseAdmin
     const clean = text.replace(/```json|```/g, '').trim();
     const data = JSON.parse(clean);
     return NextResponse.json(data);
+
   } catch (error: any) {
     if (error?.status === 429) throw error;
     console.error('Analyze error:', error);
