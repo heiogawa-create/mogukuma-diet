@@ -20,14 +20,19 @@ export async function GET(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
-    const { searchParams } = new URL(request.url);
-    const currentPeriodStart = searchParams.get('currentPeriodStart');
 
-    if (!currentPeriodStart) {
+    // サーバー側で直接current_period_startを取得
+    const { data: subData } = await supabaseAdmin
+      .from('subscriptions')
+      .select('current_period_start')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!subData?.current_period_start) {
       return NextResponse.json({ count: 0 });
     }
 
-    const periodStart = new Date(currentPeriodStart).toISOString();
+    const periodStart = new Date(subData.current_period_start).toISOString();
 
     const { count } = await supabaseAdmin
       .from('api_usage')
@@ -35,6 +40,7 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id)
       .eq('api_type', 'analyze')
       .gte('used_at', periodStart);
+
     return NextResponse.json({ count: count ?? 0 });
   } catch (error) {
     console.error('analyze count error:', error);
