@@ -394,7 +394,7 @@ useEffect(() => {
   }, 60 * 1000);
   return () => clearInterval(timer);
 }, []);
-  const { isPremium, isMax, plan, openPortal, currentPeriodEnd } = useSubscription();
+  const { isPremium, isMax, plan, openPortal, currentPeriodStart } = useSubscription();
   const analyzeLimit = isMax ? 100 : 50;
 
   useEffect(() => {
@@ -412,7 +412,7 @@ useEffect(() => {
     const fetchAnalyzeCount = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session || !isPremium) return;
-      const res = await fetch(`/api/analyze/count?currentPeriodEnd=${currentPeriodEnd ?? ''}`, {
+      const res = await fetch(`/api/analyze/count?currentPeriodStart=${currentPeriodStart ?? ''}`, {
   headers: { Authorization: `Bearer ${session.access_token}` },
 });
       if (res.ok) {
