@@ -24,14 +24,15 @@ export async function GET(request: NextRequest) {
     const max = isMax(subscription);
 
     return NextResponse.json({
-      plan: subscription?.plan ?? 'free',
-      status: subscription?.status ?? 'active',
-      isPremium: premium,
-      isMax: max,
-      currentPeriodEnd: subscription?.current_period_end ?? null,
-      cancelAtPeriodEnd: subscription?.cancel_at_period_end ?? false,
-      hasCustomer: !!subscription?.stripe_customer_id,
-    });
+  plan: subscription?.plan ?? 'free',
+  status: subscription?.status ?? 'active',
+  isPremium: premium,
+  isMax: max,
+  currentPeriodEnd: subscription?.current_period_end ?? null,
+  currentPeriodStart: subscription?.current_period_start ?? null,
+  cancelAtPeriodEnd: subscription?.cancel_at_period_end ?? false,
+  hasCustomer: !!subscription?.stripe_customer_id,
+});
   } catch (error) {
     console.error('Subscription fetch error:', error);
     return NextResponse.json({ error: 'サーバーエラー' }, { status: 500 });
