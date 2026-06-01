@@ -23,13 +23,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const currentPeriodStart = searchParams.get('currentPeriodStart');
 
-let periodStart: string;
-if (currentPeriodStart) {
-  periodStart = new Date(currentPeriodStart).toISOString();
-} else {
-  const now = new Date();
-  periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-}
+    if (!currentPeriodStart) {
+      return NextResponse.json({ count: 0 });
+    }
+
+    const periodStart = new Date(currentPeriodStart).toISOString();
 
     const { count } = await supabaseAdmin
       .from('api_usage')
@@ -37,7 +35,6 @@ if (currentPeriodStart) {
       .eq('user_id', user.id)
       .eq('api_type', 'analyze')
       .gte('used_at', periodStart);
-
     return NextResponse.json({ count: count ?? 0 });
   } catch (error) {
     console.error('analyze count error:', error);
