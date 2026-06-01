@@ -8,6 +8,7 @@ export interface SubscriptionState {
   isPremium: boolean;
   isMax: boolean;
   currentPeriodEnd: string | null;
+  currentPeriodStart: string | null;
   cancelAtPeriodEnd: boolean;
   hasCustomer: boolean;
   loading: boolean;
@@ -20,6 +21,7 @@ const DEFAULT_STATE: SubscriptionState = {
   isPremium: false,
   isMax: false,
   currentPeriodEnd: null,
+  currentPeriodStart: null,
   cancelAtPeriodEnd: false,
   hasCustomer: false,
   loading: true,
