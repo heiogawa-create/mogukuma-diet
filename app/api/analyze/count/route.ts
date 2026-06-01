@@ -21,19 +21,15 @@ export async function GET(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
     const { searchParams } = new URL(request.url);
-    const currentPeriodEnd = searchParams.get('currentPeriodEnd');
-    
-    // 請求期間の開始日を計算
-    let periodStart: string;
-    if (currentPeriodEnd) {
-      const endDate = new Date(currentPeriodEnd);
-      endDate.setMonth(endDate.getMonth() - 1);
-      periodStart = endDate.toISOString();
-    } else {
-      // フォールバック：今月の1日
-      const now = new Date();
-      periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    }
+    const currentPeriodStart = searchParams.get('currentPeriodStart');
+
+let periodStart: string;
+if (currentPeriodStart) {
+  periodStart = new Date(currentPeriodStart).toISOString();
+} else {
+  const now = new Date();
+  periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+}
 
     const { count } = await supabaseAdmin
       .from('api_usage')
