@@ -28,20 +28,27 @@ export async function POST(request: NextRequest) {
 
       if (user) {
         const now = new Date();
-const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+// Stripeの請求期間開始日を取得
+const { data: subData } = await supabaseAdmin
+  .from('subscriptions')
+  .select('current_period_end')
+  .eq('user_id', user.id)
+  .single();
 
-        // 今月の使用回数を確認
-        const supabaseAdmin = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
+const periodStart = subData?.current_period_end
+  ? (() => {
+      const d = new Date(subData.current_period_end);
+      d.setMonth(d.getMonth() - 1);
+      return d.toISOString();
+    })()
+  : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
-        const { count } = await supabaseAdmin
-          .from('api_usage')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('api_type', 'analyze')
-          .eq('year_month', yearMonth);
+const { count } = await supabaseAdmin
+  .from('api_usage')
+  .select('*', { count: 'exact', head: true })
+  .eq('user_id', user.id)
+  .eq('api_type', 'analyze')
+  .gte('used_at', periodStart);
 
         if ((count ?? 0) >= MONTHLY_LIMIT) {
           return NextResponse.json({
