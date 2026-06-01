@@ -394,7 +394,7 @@ useEffect(() => {
   }, 60 * 1000);
   return () => clearInterval(timer);
 }, []);
-  const { isPremium, isMax, plan, openPortal, currentPeriodStart } = useSubscription();
+  const { isPremium, isMax, plan, openPortal, currentPeriodStart, loading: subscriptionLoading } = useSubscription();
   const analyzeLimit = isMax ? 100 : 50;
 
   useEffect(() => {
@@ -422,7 +422,7 @@ useEffect(() => {
       }
     };
     fetchAnalyzeCount();
-  }, [isPremium, currentPeriodStart, loading]);
+  }, [isPremium, currentPeriodStart, subscriptionLoading]);
 
   useEffect(() => {
     const savedMeals = window.localStorage.getItem(MEALS_STORAGE_KEY);
