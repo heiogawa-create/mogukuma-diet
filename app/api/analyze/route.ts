@@ -33,10 +33,10 @@ export async function POST(request: NextRequest) {
 
         // Stripeの請求期間開始日を取得
         const { data: subData } = await supabaseAdmin
-          .from('subscriptions')
-          .select('current_period_end')
-          .eq('user_id', user.id)
-          .single();
+  .from('subscriptions')
+  .select('current_period_start, current_period_end')
+  .eq('user_id', user.id)
+  .single();
 
         const periodStart = subData?.current_period_start
   ? new Date(subData.current_period_start).toISOString()
