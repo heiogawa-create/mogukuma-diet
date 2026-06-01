@@ -13,6 +13,7 @@ export interface SubscriptionRecord {
   stripe_subscription_id: string | null;
   plan: 'free' | 'premium' | 'max';
   status: string;
+  current_period_start: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
 }
