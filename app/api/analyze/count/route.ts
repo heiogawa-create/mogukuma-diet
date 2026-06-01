@@ -21,16 +21,27 @@ export async function GET(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
     const { searchParams } = new URL(request.url);
-    const yearMonth = searchParams.get('yearMonth') ?? new Date().toISOString().slice(0, 7);
+    const currentPeriodEnd = searchParams.get('currentPeriodEnd');
+    
+    // 請求期間の開始日を計算
+    let periodStart: string;
+    if (currentPeriodEnd) {
+      const endDate = new Date(currentPeriodEnd);
+      endDate.setMonth(endDate.getMonth() - 1);
+      periodStart = endDate.toISOString();
+    } else {
+      // フォールバック：今月の1日
+      const now = new Date();
+      periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    }
+
     const { count } = await supabaseAdmin
       .from('api_usage')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
       .eq('api_type', 'analyze')
-      .eq('year_month', yearMonth);
-    console.log('yearMonth:', yearMonth);
-    console.log('user_id:', user.id);
-    console.log('count:', count);
+      .gte('used_at', periodStart);
+
     return NextResponse.json({ count: count ?? 0 });
   } catch (error) {
     console.error('analyze count error:', error);
