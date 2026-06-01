@@ -394,7 +394,7 @@ useEffect(() => {
   }, 60 * 1000);
   return () => clearInterval(timer);
 }, []);
-  const { isPremium, isMax, plan, openPortal } = useSubscription();
+  const { isPremium, isMax, plan, openPortal, currentPeriodEnd } = useSubscription();
   const analyzeLimit = isMax ? 100 : 50;
 
   useEffect(() => {
@@ -412,11 +412,9 @@ useEffect(() => {
     const fetchAnalyzeCount = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session || !isPremium) return;
-      const now = new Date();
-const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const res = await fetch(`/api/analyze/count?yearMonth=${yearMonth}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
+      const res = await fetch(`/api/analyze/count?currentPeriodEnd=${currentPeriodEnd ?? ''}`, {
+  headers: { Authorization: `Bearer ${session.access_token}` },
+});
       if (res.ok) {
         const data = await res.json();
         setAnalyzeCount(data.count ?? 0);
