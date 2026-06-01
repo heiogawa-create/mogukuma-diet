@@ -424,19 +424,20 @@ useEffect(() => {
   }, [isPremium, currentPeriodStart]);
 
   useEffect(() => {
-    const fetchReferralCode = async () => {
+    if (!currentPeriodStart) return;
+    const fetchAnalyzeCount = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session || !isPremium) return;
-      const res = await fetch('/api/referral/code', {
+      const res = await fetch(`/api/analyze/count?currentPeriodStart=${currentPeriodStart}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (res.ok) {
         const data = await res.json();
-        setMyReferralCode(data.code);
+        setAnalyzeCount(data.count ?? 0);
       }
     };
-    fetchReferralCode();
-  }, [isPremium]);
+    fetchAnalyzeCount();
+  }, [isPremium, currentPeriodStart]);
 
   useEffect(() => {
     const savedMeals = window.localStorage.getItem(MEALS_STORAGE_KEY);
