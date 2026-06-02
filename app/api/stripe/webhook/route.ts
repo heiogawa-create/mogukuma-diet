@@ -71,6 +71,27 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+        case 'invoice.payment_succeeded': {
+  const invoice = event.data.object as Stripe.Invoice;
+  // 初回はcheckout.session.completedで処理済みなので更新課金のみ対象
+  if ((invoice as any).billing_reason !== 'subscription_cycle') break;
+  
+  const subscriptionId = (invoice as any).subscription as string;
+  if (!subscriptionId) break;
+
+  const sub = await stripe.subscriptions.retrieve(subscriptionId, {
+    expand: ['default_payment_method'],
+  });
+  const userId = sub.metadata?.supabase_user_id;
+  if (!userId) break;
+
+  const plan = getPlanFromPriceId(sub.items.data[0]?.price.id);
+  if (plan === 'free') break;
+
+  await tryRecordReward(userId, plan, sub);
+  break;
+}
+
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         if (session.mode === 'subscription' && session.subscription) {
