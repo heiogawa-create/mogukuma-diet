@@ -425,6 +425,22 @@ useEffect(() => {
   }, [isPremium, currentPeriodStart, subscriptionLoading]);
 
   useEffect(() => {
+  if (!isPremium || !user) return;
+  const fetchReferralCode = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const res = await fetch('/api/referral/code', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setMyReferralCode(data.code ?? '');
+    }
+  };
+  fetchReferralCode();
+}, [isPremium, user]);
+
+  useEffect(() => {
     const savedMeals = window.localStorage.getItem(MEALS_STORAGE_KEY);
     const savedWeights = window.localStorage.getItem(WEIGHTS_STORAGE_KEY);
     const savedSettings = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
