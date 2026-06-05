@@ -56,10 +56,13 @@ export async function POST(request: NextRequest) {
         }
 
         // 使用回数を記録（エラーチェック追加）
+        const now = new Date();
+        const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         const { error: insertError } = await supabaseAdmin.from('api_usage').insert({
           user_id: user.id,
           api_type: 'analyze',
-          used_at: new Date().toISOString(),
+          used_at: now.toISOString(),
+          year_month: yearMonth,
         });
 
         if (insertError) {
