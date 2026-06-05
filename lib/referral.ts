@@ -27,10 +27,7 @@ export function getCurrentYearMonth(): string {
 export async function checkRewardEligibility(
   subscribedAt: Date
 ): Promise<{ eligible: boolean; reason?: string }> {
-  const diffDays = (Date.now() - subscribedAt.getTime()) / (1000 * 60 * 60 * 24);
-  if (diffDays < 7) {
-    return { eligible: false, reason: '7日未満のため対象外' };
-  }
+  // 7日チェック無効化（決済直後に報酬記録）
   return { eligible: true };
 }
 
