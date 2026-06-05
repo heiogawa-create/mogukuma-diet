@@ -55,11 +55,20 @@ export async function POST(request: NextRequest) {
           }, { status: 429 });
         }
 
-        // 使用回数を記録
-        await supabaseAdmin.from('api_usage').insert({
+        // 使用回数を記録（エラーチェック追加）
+        const { error: insertError } = await supabaseAdmin.from('api_usage').insert({
           user_id: user.id,
           api_type: 'analyze',
+          used_at: new Date().toISOString(),
         });
+
+        if (insertError) {
+          console.error('api_usage insert error:', insertError);
+          return NextResponse.json(
+            { error: 'カウントの記録に失敗しました。もう一度お試しください。' },
+            { status: 500 }
+          );
+        }
       }
     }
 
