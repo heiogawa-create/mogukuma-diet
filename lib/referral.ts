@@ -1,10 +1,17 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Plan, RewardInput } from '@/types/referral';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+let _supabaseAdmin: SupabaseClient | undefined;
+
+function getSupabaseAdmin(): SupabaseClient {
+  if (!_supabaseAdmin) {
+    _supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+  }
+  return _supabaseAdmin;
+}
 
 // ============================================================
 // 報酬計算
@@ -40,7 +47,7 @@ export async function checkCardFingerprintFraud(
   fingerprint: string,
   excludeUserId: string
 ): Promise<boolean> {
-  const { data } = await supabaseAdmin
+  const { data } = await getSupabaseAdmin()
     .from('referrals')
     .select('id')
     .eq('referred_card_fingerprint', fingerprint)
@@ -52,7 +59,7 @@ export async function checkCardFingerprintFraud(
 /** 同一IPから24時間以内に3件以上の紹介登録があるか */
 export async function checkIpFraud(ip: string): Promise<boolean> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { count } = await supabaseAdmin
+  const { count } = await getSupabaseAdmin()
     .from('referrals')
     .select('id', { count: 'exact', head: true })
     .eq('referred_ip', ip)
@@ -82,7 +89,7 @@ export async function recordReward(input: RewardInput): Promise<{
 
   const amount = getReferralReward(input.referrerPlan, input.referredPlan);
 
-  const { error } = await supabaseAdmin
+  const { error } = await getSupabaseAdmin()
     .from('referral_rewards')
     .insert({
       referrer_id: input.referrerId,
@@ -116,7 +123,7 @@ export async function activateReferralAndUpdatePlan(
   userId: string,
   plan: Plan
 ): Promise<void> {
-  const { error: referralError } = await supabaseAdmin
+  const { error: referralError } = await getSupabaseAdmin()
     .from('referrals')
     .update({ status: 'active', activated_at: new Date().toISOString() })
     .eq('referred_id', userId)
@@ -130,7 +137,7 @@ export async function activateReferralAndUpdatePlan(
 }
 
 export async function updateCurrentPlan(userId: string, plan: Plan): Promise<void> {
-  const { error } = await supabaseAdmin
+  const { error } = await getSupabaseAdmin()
     .from('subscriptions')
     .update({ current_plan: plan })
     .eq('user_id', userId);

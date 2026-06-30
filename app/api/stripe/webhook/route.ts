@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
-import { stripe, constructWebhookEvent } from '@/lib/stripe';
+import { getStripe, constructWebhookEvent } from '@/lib/stripe';
 import { upsertSubscription, downgradeToFree } from '@/lib/subscription';
 import {
   activateReferralAndUpdatePlan,
@@ -14,12 +14,16 @@ import type { Plan } from '@/types/referral';
 
 export const dynamic = 'force-dynamic';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function POST(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
+
   const body = await request.arrayBuffer();
   const signature = request.headers.get('stripe-signature');
   if (!signature) {
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
         const invoice = event.data.object as Stripe.Invoice;
         const subscriptionId = (invoice as any).subscription as string;
         if (subscriptionId) {
-          const sub = await stripe.subscriptions.retrieve(subscriptionId);
+          const sub = await getStripe().subscriptions.retrieve(subscriptionId);
           await handleSubscriptionUpsert(sub, null, 'past_due');
         }
         break;
@@ -79,7 +83,7 @@ export async function POST(request: NextRequest) {
   const subscriptionId = (invoice as any).subscription as string;
   if (!subscriptionId) break;
 
-  const sub = await stripe.subscriptions.retrieve(subscriptionId, {
+  const sub = await getStripe().subscriptions.retrieve(subscriptionId, {
     expand: ['default_payment_method'],
   });
   const userId = sub.metadata?.supabase_user_id;
@@ -96,13 +100,13 @@ export async function POST(request: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session;
         if (session.mode === 'subscription' && session.subscription) {
           const userId = session.metadata?.supabase_user_id;
-          const subscription = await stripe.subscriptions.retrieve(
+          const subscription = await getStripe().subscriptions.retrieve(
             session.subscription as string,
             { expand: ['default_payment_method'] }
           );
 
           if (userId && !subscription.metadata?.supabase_user_id) {
-            await stripe.subscriptions.update(session.subscription as string, {
+            await getStripe().subscriptions.update(session.subscription as string, {
               metadata: { supabase_user_id: userId },
             });
           }
@@ -159,6 +163,7 @@ async function tryRecordReward(
   referredPlan: Plan,
   subscription: Stripe.Subscription
 ): Promise<void> {
+  const supabaseAdmin = getSupabaseAdmin();
   const { data: referral } = await supabaseAdmin
     .from('referrals')
     .select('referrer_id')
