@@ -1000,7 +1000,7 @@ useEffect(() => {
                       </p>
                       <button
                         onClick={() => {
-                          const url = `https://mogukuma-diet.vercel.app/?ref=${myReferralCode}`;
+                          const url = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://mogukuma-diet.netlify.app'}/?ref=${myReferralCode}`;
                           navigator.clipboard.writeText(url);
                           alert('招待リンクをコピーしました！');
                         }}

@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "next lint"
   },
+  "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.0.0"
+  },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/ssr": "^0.6.1",

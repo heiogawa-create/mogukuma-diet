@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Stripeアカウントが見つかりません' }, { status: 400 });
     }
 
-    const origin = request.headers.get('origin') || 'https://mogukuma-diet.vercel.app';
+    const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || 'https://mogukuma-diet.netlify.app';
     const portalSession = await createPortalSession(
   subscription.stripe_customer_id,
   `${origin}/`

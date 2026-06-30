@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const planId = body.plan === 'max' ? 'max' : 'premium';
 
-    const origin = request.headers.get('origin') || 'https://mogukuma-diet.vercel.app';
+    const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || 'https://mogukuma-diet.netlify.app';
     const subscription = await getUserSubscription(user.id);
 
     // すでに同じプランの場合はエラー
