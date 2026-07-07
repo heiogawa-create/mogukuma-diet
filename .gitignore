@@ -81,6 +81,10 @@ out
 # Vercel
 .vercel
 
+# OpenNext / Cloudflare Workers
+.open-next
+.wrangler
+
 # Nuxt.js build / generate output
 .nuxt
 dist

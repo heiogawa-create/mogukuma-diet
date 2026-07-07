@@ -24,7 +24,7 @@ function getSupabaseAdmin() {
 export async function POST(request: NextRequest) {
   const supabaseAdmin = getSupabaseAdmin();
 
-  const body = await request.arrayBuffer();
+  const body = await request.text();
   const signature = request.headers.get('stripe-signature');
   if (!signature) {
     return NextResponse.json({ error: 'No signature' }, { status: 400 });
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
   let event: Stripe.Event;
   try {
-    event = constructWebhookEvent(Buffer.from(body), signature);
+    event = constructWebhookEvent(body, signature);
   } catch (err) {
     console.error('Webhook signature verification failed:', err);
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
