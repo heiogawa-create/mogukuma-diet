@@ -133,7 +133,7 @@ export async function createPortalSession(
 }
 
 export function constructWebhookEvent(
-  payload: Buffer,
+  payload: string | Buffer,
   signature: string
 ): Stripe.Event {
   return getStripe().webhooks.constructEvent(

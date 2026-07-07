@@ -5,16 +5,14 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:worker": "opennextjs-cloudflare build",
+    "build:cf": "next build && opennextjs-cloudflare build",
     "start": "next start",
-    "preview": "opennextjs-cloudflare build && wrangler dev",
-    "deploy": "opennextjs-cloudflare build && wrangler deploy",
+    "preview:cf": "npm run build:cf && wrangler dev",
+    "deploy:cf": "npm run build:cf && wrangler deploy",
     "lint": "next lint"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
-    "@supabase/auth-helpers-nextjs": "^0.15.0",
-    "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.106.1",
     "@types/node": "^20.12.12",
     "@types/react": "^19.2.17",
