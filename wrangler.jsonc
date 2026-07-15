@@ -4,6 +4,17 @@
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-07-07",
   "compatibility_flags": ["nodejs_compat"],
+  // ダッシュボードで設定したシークレット等をデプロイ時に消さない
+  "keep_vars": true,
+  // 非シークレットの変数はここで管理する（ダッシュボードのプレーンテキスト変数は
+  // wrangler経由のデプロイで消えるため）
+  "vars": {
+    "NEXT_PUBLIC_SITE_URL": "https://mogukuma-diet.heiogawa.workers.dev",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://kvrnomajvqnatczjyzvr.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_H5z_-WBCb2-LiE9LodiLAw_yUpyOkis",
+    "STRIPE_PREMIUM_PRICE_ID": "price_1TaNy3EirnqY4A1IMEWQXQiB",
+    "STRIPE_MAX_PRICE_ID": "price_1TbFGIEirnqY4A1l2Z9yck54"
+  },
   "observability": {
     "enabled": true
   },
